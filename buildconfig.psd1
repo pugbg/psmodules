@@ -1,4 +1,6 @@
-$UserVariables = @{}
+$UserVariables = @{
+	PSGalleryApiKey=Get-Credential -UserName 'gogbg psgallery repo' -Message 'Enter NugetApiKey'
+}
 $SolutionStructure=@{
 	#Example: @(@{SourcePath='c:\modules'},@{BuildPath='c:\modules bin'})
 	ModulesPath=@(
@@ -28,7 +30,12 @@ $Packaging=@{
 			Priority=2
 		}
 	)
-	PSGetPublishRepositories=@()
+	PSGetPublishRepositories=@(
+		@{
+			Name='PSGallery'
+			NuGetApiKey=$UserVariables['PSGalleryApiKey'].GetNetworkCredential().password
+		}
+	)
 	#List of Modules that should be published to PSGet Repository
 	PublishAllModules=$false
 	PublishSpecificModules=@()
