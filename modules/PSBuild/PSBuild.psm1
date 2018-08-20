@@ -1882,19 +1882,21 @@ function Build-PSSolution
 		{
 			Write-Verbose "Configure PS Environment started"
 
-			$TempModulePaths = $SolutionConfig.SolutionStructure.ModulesPath.BuildPath
-			if ($SolutionConfig.Build.AutoloadbuiltModulesForUser)
+			if ($SolutionConfig.SolutionStructure.ModulesPath.BuildPath)
 			{
+				$TempModulePaths = $SolutionConfig.SolutionStructure.ModulesPath.BuildPath
+				if ($SolutionConfig.Build.AutoloadbuiltModulesForUser)
+				{
 
-				Write-Verbose "Configure PS Environment in progress. Enable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
-				Add-PSModulePathEntry -Path $TempModulePaths -Scope User,Process -ErrorAction Stop -Force
+					Write-Verbose "Configure PS Environment in progress. Enable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
+					Add-PSModulePathEntry -Path $TempModulePaths -Scope User,Process -ErrorAction Stop -Force
+				}
+				else
+				{
+					Write-Verbose "Configure PS Environment in progress. Disable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
+					Remove-PSModulePathEntry -Path $TempModulePaths -Scope User,Process -ErrorAction Stop -WarningAction SilentlyContinue
+				}
 			}
-			else
-			{
-				Write-Verbose "Configure PS Environment in progress. Disable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
-				Remove-PSModulePathEntry -Path $TempModulePaths -Scope User,Process -ErrorAction Stop -WarningAction SilentlyContinue
-			}
-
 			Write-Verbose "Configure PS Environment completed"
 		}
 		catch
@@ -1905,37 +1907,44 @@ function Build-PSSolution
 		#Build Solution Modules
 		try
 		{
-			Write-Verbose "Build PSModules started"
-
 			[ref]$ModuleValidationCache = @{}
 			[ref]$PsGetModuleValidationCache = @{}
 
-			#Validate All Modules
-			$AllModulesPath = New-Object System.Collections.ArrayList -ErrorAction Stop
-			foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
+			if ($SolutionConfig.SolutionStructure.ModulesPath)
 			{
-				$null = $AllModulesPath.AddRange((Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop))
-			}
-			priv_Validate-Module -SourcePath $AllModulesPath -ModuleValidationCache $ModuleValidationCache
+				Write-Verbose "Build PSModules started"
 
-			foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
-			{
-				$Modules = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop
-				$BuildPSSolutionModule_Params = @{
-					SourcePath=$Modules
-					DestinationPath=$ModulePath.BuildPath
-					ResolveDependancies=$SolutionConfig.Build.AutoResolveDependantModules
-					PSGetRepository=$SolutionConfig.Packaging.PSGetSearchRepositories
-					CheckCommandReferences=$SolutionConfig.Build.CheckCommandReferences.Enabled
-					CheckCommandReferencesConfiguration=$SolutionConfig.Build.CheckCommandReferences
-					ModuleValidationCache=$ModuleValidationCache
-					UpdateModuleReferences=$SolutionConfig.Build.UpdateModuleReferences
-					PsGetModuleValidationCache=$PsGetModuleValidationCache
+				#Validate All Modules
+				$AllModulesPath = New-Object System.Collections.ArrayList -ErrorAction Stop
+				foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
+				{
+					$null = $AllModulesPath.AddRange((Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop))
 				}
-				Build-PSModule @BuildPSSolutionModule_Params -ErrorAction Stop
+				priv_Validate-Module -SourcePath $AllModulesPath -ModuleValidationCache $ModuleValidationCache
+
+				foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
+				{
+					$Modules = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop
+					$BuildPSSolutionModule_Params = @{
+						SourcePath=$Modules
+						DestinationPath=$ModulePath.BuildPath
+						ResolveDependancies=$SolutionConfig.Build.AutoResolveDependantModules
+						PSGetRepository=$SolutionConfig.Packaging.PSGetSearchRepositories
+						CheckCommandReferences=$SolutionConfig.Build.CheckCommandReferences.Enabled
+						CheckCommandReferencesConfiguration=$SolutionConfig.Build.CheckCommandReferences
+						ModuleValidationCache=$ModuleValidationCache
+						UpdateModuleReferences=$SolutionConfig.Build.UpdateModuleReferences
+						PsGetModuleValidationCache=$PsGetModuleValidationCache
+					}
+					Build-PSModule @BuildPSSolutionModule_Params -ErrorAction Stop
+				}
+		
+				Write-Verbose "Build PSModules completed"
 			}
-      
-			Write-Verbose "Build PSModules completed"
+			else
+			{
+				Write-Verbose "Build PSModules skipped"
+			}
 		}
 		catch
 		{
