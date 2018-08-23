@@ -1565,7 +1565,7 @@ function Build-PSScript
 									#Check if NugetPackage is already downloaded
 									try
 									{
-										$ModDependencyExcepctedPath = Join-Path -Path $DestinationPath -ChildPath $dependantModuleName -ErrorAction Stop
+										$ModDependencyExcepctedPath = Join-Path -Path $DependencyDestinationPath -ChildPath $dependantModuleName -ErrorAction Stop
 										Remove-Variable -Name ModDependencyExist -ErrorAction SilentlyContinue
 										$ModDependencyExist = Get-Module -ListAvailable -FullyQualifiedName $ModDependencyExcepctedPath -Refresh -ErrorAction Stop -Verbose:$false
 									}
@@ -1585,15 +1585,15 @@ function Build-PSScript
 
 										#Downloading NugetPackage
 										Write-Verbose "Build Script:$scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion in progress. Downloading PSGetPackage: $($NuGetDependancyHandle.Name)/$($NuGetDependancyHandle.Version)"
-										if (-not (Test-Path $DestinationPath))
+										if (-not (Test-Path $DependencyDestinationPath))
 										{
-											$null = New-Item -Path $DestinationPath -ItemType Directory -ErrorAction Stop
+											$null = New-Item -Path $DependencyDestinationPath -ItemType Directory -ErrorAction Stop
 										}
 										$PSGet_Params = @{
 											Name=$dependantModuleName
 											Repository=$ModuleRepo.Name
 											RequiredVersion=$NuGetDependancyHandle.Version
-                                            Path=$DestinationPath
+                                            Path=$DependencyDestinationPath
 										}
 										if ($ModuleRepo.ContainsKey('Credential'))
 										{
