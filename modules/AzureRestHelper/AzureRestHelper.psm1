@@ -11,24 +11,38 @@ function Invoke-ArhRestMethod
 		#Method
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet('Get')]
+        [ValidateSet('Get','Patch')]
         [string]$Method,
 
 		#Uri
 		[Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [string]$Uri
+        [string]$Uri,
+
+        #Body
+        [Parameter(Mandatory=$false)]
+        [object]$Body
     )
 
     process
     {
-        $restResult = Invoke-RestMethod -Method $Method -Headers $Headers -Uri $Uri -UseBasicParsing
-		$restResult.value
+        $InvokeRestMethod_Params = @{
+            Method=$Method
+            Headers=$Headers
+            Uri=$Uri
+            UseBasicParsing=$true
+        }
+        if ($PSBoundParameters.ContainsKey('Body'))
+        {
+            $InvokeRestMethod_Params.Add('Body',$Body)
+        }
+        $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop
+		$restResult
 
         while ($restResult.nextLink)
         {
-            $restResult = Invoke-RestMethod -Method $Method -Headers $Headers -Uri $restResult.nextLink -UseBasicParsing
-            $restResult.value
+            $restResult = Invoke-RestMethod -Method 'Get' -Headers $Headers -Uri $restResult.nextLink -UseBasicParsing
+            $restResult
         }
     }
 }
