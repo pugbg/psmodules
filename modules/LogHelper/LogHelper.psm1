@@ -9,6 +9,10 @@ function Register-LhConfiguration
         [Parameter(Mandatory = $true,ParameterSetName='Definition')]
         [hashtable[]]$ConfigurationDefinition,
 
+        #JsonConfigurationDefinition
+        [Parameter(Mandatory = $true,ParameterSetName='JsonDefinition')]
+        [string[]]$JsonConfigurationDefinition,
+
         #PsdConfigurationFilePath
         [Parameter(Mandatory = $true,ParameterSetName='PsdFile')]
         [string[]]$PsdConfigurationFilePath,
@@ -62,6 +66,29 @@ function Register-LhConfiguration
                     {
                         $Config = get-content -Path $JsonConfig -ErrorAction Stop -raw | ConvertFrom-Json
 
+                        #Convert InitializationScript to ScriptBlock
+                        if ($Config.InitializationScript)
+                        {
+                            $Config.InitializationScript = [scriptblock]::Create($Config.InitializationScript)
+                        }
+
+                        #Convert MessageTypes to ScriptBlocks
+                        $Config.MessageTypes.psobject.Properties | foreach {
+                            $Config.MessageTypes."$($_.Name)" = [scriptblock]::Create($_.Value)
+                        }
+
+                        $null = $Configurations.Add($Config)
+                    }
+
+                    break
+
+                }
+
+                'JsonDefinition' {
+
+                    foreach ($ConfigAsJson in $JsonConfigurationDefinition)
+                    {
+                        $config = $ConfigAsJson | ConvertFrom-Json -ErrorAction Stop
                         #Convert InitializationScript to ScriptBlock
                         if ($Config.InitializationScript)
                         {
