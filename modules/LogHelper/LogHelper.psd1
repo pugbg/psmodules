@@ -12,7 +12,7 @@
 RootModule = 'LogHelper.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0.2'
+ModuleVersion = '1.0.0.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,7 +93,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"9241035791C8C33246193077D8DC3DD67B7D467063568E800240B7BA7EB8EDBC","HashAlgorithm":"SHA256","Version":"1.0.0.2"}'
+    VersionControl = '{"Hash":"04901627C914C74DF1A3F76386B575D565085B891986B29BB4F4BA740EE19F04","HashAlgorithm":"SHA256","Version":"1.0.0.3"}'
 
     PSData = @{
 
