@@ -21,10 +21,10 @@ ModuleVersion = '1.0.0.6'
 GUID = 'd0befcd7-86a1-4cd5-82e6-2f79f4fa6d69'
 
 # Author of this module
-Author = 'Georgi Ivanov'
+Author = 'gogbg@outlook.com'
 
 # Company or vendor of this module
-CompanyName = 'KPMG ITS'
+CompanyName = 'unknown'
 
 # Copyright statement for this module
 Copyright = '(c) 2017 . All rights reserved.'
