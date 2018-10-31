@@ -325,7 +325,7 @@ function priv_Analyse-ItemDependancies
 		#CurrentDependancies
 		[Parameter(Mandatory=$false)]
 		[string[]]$CurrentDependancies
-    )
+	)
     
     Process
     {
@@ -1918,7 +1918,7 @@ function Build-PSSolution
 				$AllModulesPath = New-Object System.Collections.ArrayList -ErrorAction Stop
 				foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
 				{
-					$null = $AllModulesPath.AddRange((Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop))
+					$null = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop | foreach {$AllModulesPath.Add($_)}
 				}
 				priv_Validate-Module -SourcePath $AllModulesPath -ModuleValidationCache $ModuleValidationCache
 
