@@ -1124,7 +1124,7 @@ function Build-PSModule
 						}
 
 						#Check Module Dependancies
-						if ($CheckCommandReferences.IsPresent)
+						if ($CheckCommandReferences.IsPresent -and (-not $ModuleValidationCache.Value[$moduleName].IsVersionValid)) 
 						{
 							#if Module is Excluded for CheckCommandReferences
 							if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName))
@@ -1666,7 +1666,7 @@ function Build-PSScript
 						}
 
 						#Check Script Dependancies
-						if ($CheckCommandReferences.IsPresent)
+						if ($CheckCommandReferences.IsPresent -and (-not $AllScriptValidation[$scriptName].IsVersionValid))
 						{
 							#if Script is Excluded for CheckCommandReferences
 							if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName))
