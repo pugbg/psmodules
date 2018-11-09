@@ -604,23 +604,23 @@ function Update-HTMLSpecialChars
     {
 		try
 		{
-			$StringAsHTML = $StringAsHTML.Replace("Ä","&Auml;") #Capital A-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("ä","&auml;") #Lowercase a-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("É","&Eacute;") #Lowercase a-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("é","&eacute;") #Lowercase E-acute
-			$StringAsHTML = $StringAsHTML.Replace("Ö","&Ouml;") #Capital O-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("ö","&ouml;") #Lowercase o-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("Ü","&Uuml;") #Capital U-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("ü","&uuml;") #Lowercase u-umlaut
-			$StringAsHTML = $StringAsHTML.Replace("ß","&szlig;") #SZ ligature
-			$StringAsHTML = $StringAsHTML.Replace("«","&laquo;") #Left angle quotes
-			$StringAsHTML = $StringAsHTML.Replace("»","&raquo;") #Right angle quotes
-			$StringAsHTML = $StringAsHTML.Replace('„',"&#132;") #Left lower quotes
-			$StringAsHTML = $StringAsHTML.Replace('“',"&#147;") #Left quotes
-			$StringAsHTML = $StringAsHTML.Replace('”',"&#148;") #Right quotes
-			$StringAsHTML = $StringAsHTML.Replace("°","&#176;") #Degree sign (Grad)
-			$StringAsHTML = $StringAsHTML.Replace("€","&euro;") #Euro
-			$StringAsHTML = $StringAsHTML.Replace("£","&pound;") #Pound Sterling
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&Auml;") #Capital A-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&auml;") #Lowercase a-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&Eacute;") #Lowercase a-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&eacute;") #Lowercase E-acute
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&Ouml;") #Capital O-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&ouml;") #Lowercase o-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&Uuml;") #Capital U-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&uuml;") #Lowercase u-umlaut
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&szlig;") #SZ ligature
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&laquo;") #Left angle quotes
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&raquo;") #Right angle quotes
+			$StringAsHTML = $StringAsHTML.Replace('ï¿½',"&#132;") #Left lower quotes
+			$StringAsHTML = $StringAsHTML.Replace('ï¿½',"&#147;") #Left quotes
+			$StringAsHTML = $StringAsHTML.Replace('ï¿½',"&#148;") #Right quotes
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&#176;") #Degree sign (Grad)
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&euro;") #Euro
+			$StringAsHTML = $StringAsHTML.Replace("ï¿½","&pound;") #Pound Sterling
 
 			return $StringAsHTML
 		}
@@ -663,7 +663,7 @@ function Test-JsonSchema
     Process
     {
 		$JSchema = [Newtonsoft.Json.Schema.JSchema]::Parse($Schema)
-		$JObject = [Newtonsoft.Json.Linq.JObject]::Parse($InputObject)
+		$JObject = [Newtonsoft.Json.Linq.JToken, Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed]::Parse($InputObject)
 		if ($PSBoundParameters.ContainsKey('ValidationMessage'))
 		{
 			[Newtonsoft.Json.Schema.SchemaExtensions]::IsValid($JObject,$JSchema,$ValidationMessage)
