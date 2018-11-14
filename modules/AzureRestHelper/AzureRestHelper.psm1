@@ -54,15 +54,28 @@ function Get-ArhAuthorizationHeader
 	(
 		#TenantId
         [Parameter(Mandatory=$true)]
-        [ValidateNotNullOrEmpty()]
-        $TenantId
+        [string]$TenantId,
+
+        #AccountId
+        [Parameter(Mandatory=$true)]
+        [string]$AccountId,
+
+        #Resource
+        [Parameter(Mandatory=$false)]
+        [string]$Resource = 'https://management.core.windows.net/'
     )
 
     process
     {
         $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
-        $profileClient = New-Object -TypeName Microsoft.Azure.Commands.ResourceManager.Common.RMProfileClient -ArgumentList ($azProfile)
-        $token = $profileClient.AcquireAccessToken($TenantId)            
-        'Bearer ' + $token.AccessToken
+        $SelectedTenantContext = $azProfile.Contexts.Values | Where-Object {($_.Tenant.Id -eq $TenantId) -and ($_.Account.Id -eq $AccountId)}
+        if (-not $SelectedTenantContext)
+        {
+            Write-Error "Account: $AccountId is not authenticated against Tenant: $TenantId"
+        }
+
+        $context = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId",$SelectedTenantContext[0].TokenCache)
+        $TokenResult = $context.AcquireTokenSilent($Resource,[Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId)
+        $TokenResult.CreateAuthorizationHeader()
     }
 }
