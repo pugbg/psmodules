@@ -74,8 +74,9 @@ function Get-ArhAuthorizationHeader
             Write-Error "Account: $AccountId is not authenticated against Tenant: $TenantId"
         }
 
+        $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId,[Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
         $context = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId",$SelectedTenantContext[0].TokenCache)
-        $TokenResult = $context.AcquireTokenSilent($Resource,[Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId)
+        $TokenResult = $context.AcquireTokenSilent($Resource,[Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId,$UserId)
         $TokenResult.CreateAuthorizationHeader()
     }
 }
