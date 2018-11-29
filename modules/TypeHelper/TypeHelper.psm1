@@ -663,7 +663,7 @@ function Test-JsonSchema
     Process
     {
 		$JSchema = [Newtonsoft.Json.Schema.JSchema, Newtonsoft.Json.Schema, Version=3.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed]::Parse($Schema)
-		$JObject = [Newtonsoft.Json.Linq.JToken, Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed]::Parse($InputObject)
+		$JObject = [Newtonsoft.Json.Linq.JToken, Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed]::Parse($InputObject)
 		if ($PSBoundParameters.ContainsKey('ValidationMessage'))
 		{
 			[Newtonsoft.Json.Schema.SchemaExtensions, Newtonsoft.Json.Schema, Version=3.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed]::IsValid($JObject,$JSchema,$ValidationMessage)

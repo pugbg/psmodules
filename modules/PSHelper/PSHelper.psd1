@@ -53,7 +53,7 @@ Description = 'Generic PowerShell functionalities'
 # Modules that must be imported into the global environment prior to importing this module
 RequiredModules = @(@{ModuleName = 'Microsoft.PowerShell.Utility'; ModuleVersion = '3.1.0.0'; }, 
                @{ModuleName = 'Microsoft.PowerShell.Management'; ModuleVersion = '3.1.0.0'; }, 
-               @{ModuleName = 'TypeHelper'; ModuleVersion = '1.0.0.72'; }, 
+               @{ModuleName = 'TypeHelper'; ModuleVersion = '1.0.0.74'; }, 
                @{ModuleName = 'PowerShellGet'; ModuleVersion = '2.0.3'; })
 
 # Assemblies that must be loaded prior to importing this module

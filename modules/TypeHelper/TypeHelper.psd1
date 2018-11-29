@@ -12,7 +12,7 @@
 RootModule = 'TypeHelper.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0.72'
+ModuleVersion = '1.0.0.74'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -99,7 +99,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"3B5F5EA0A2156F32C54C91D0AE8A3C4CB02E6B88F635B02980D697087A19E906","HashAlgorithm":"SHA256","Version":"1.0.0.72"}'
+    VersionControl = '{"Hash":"4E51472B125F7C4BF3BF648DA4BE1D8329E2467AB81B7DD5E2F06E900F88E044","HashAlgorithm":"SHA256","Version":"1.0.0.74"}'
 
     PSData = @{
 
