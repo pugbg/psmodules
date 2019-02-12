@@ -220,7 +220,7 @@ function ConvertTo-Hashtable
 			$Ht = [hashtable]@{}
 			foreach ($Prop in $Property)
 			{
-				if ($Prop.Value)
+				if ($Prop.Value -or $prop.TypeNameOfValue -eq 'System.Boolean')
 				{
 					switch ($Prop.TypeNameOfValue)
 					{
