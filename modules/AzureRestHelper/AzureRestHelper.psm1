@@ -21,7 +21,15 @@ function Invoke-ArhRestMethod
 
         #Body
         [Parameter(Mandatory=$false)]
-        [object]$Body
+        [object]$Body,
+
+        #NextLinkPropertyName
+        [Parameter(Mandatory=$false)]
+        [string]$NextLinkPropertyName = 'nextLink',
+
+        #NextLinkTokenName
+        [Parameter(Mandatory=$false)]
+        [string]$NextLinkTokenName
     )
 
     process
@@ -39,9 +47,29 @@ function Invoke-ArhRestMethod
         $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop
 		$restResult
 
-        while ($restResult.nextLink)
+        while ($restResult.psobject.properties.Name -contains $NextLinkPropertyName)
         {
-            $restResult = Invoke-RestMethod -Method 'Get' -Headers $Headers -Uri $restResult.nextLink -UseBasicParsing
+            remove-variable -Name InvokeRestMethod_Params -ErrorAction SilentlyContinue
+            $InvokeRestMethod_Params = @{
+                Method='Get'
+                Headers=$Headers
+                UseBasicParsing=$true
+            }
+            if ($PSBoundParameters.ContainsKey('NextLinkTokenName'))
+            {
+                
+                $UriBuilder = [System.UriBuilder]::new($Uri)
+                $QueryStringBuilder = [System.Web.HttpUtility]::ParseQueryString($UriBuilder.Query)
+                $NextLinkTokenValue = $restResult."$NextLinkPropertyName".Substring($restResult."$NextLinkPropertyName".IndexOf($NextLinkTokenName) + $NextLinkTokenName.Length + 1)
+                $QueryStringBuilder.Add($NextLinkTokenName,$NextLinkTokenValue)
+                $UriBuilder.Query = $QueryStringBuilder.ToString()
+                $InvokeRestMethod_Params.Add('Uri',$UriBuilder.ToString()) 
+            }
+            else
+            {
+                $InvokeRestMethod_Params.Add('Uri',$restResult."$NextLinkPropertyName") 
+            }
+            $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop
             $restResult
         }
     }
