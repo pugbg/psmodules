@@ -1,76 +1,88 @@
 function Invoke-ArhRestMethod
 {
     [CmdletBinding()]
-	param
-	(
-		#Headers
+    param
+    (
+        #Headers
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         $Headers,
 
-		#Method
-        [Parameter(Mandatory=$true)]
+        #Method
+        [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet('Get','Patch')]
         [string]$Method,
 
-		#Uri
-		[Parameter(Mandatory=$true)]
+        #Uri
+        [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$Uri,
 
         #Body
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [object]$Body,
 
+        #FollowNextLink
+        [Parameter(Mandatory = $false)]
+        [switch]$FollowNextLink,
+
         #NextLinkPropertyName
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$NextLinkPropertyName = 'nextLink',
 
         #NextLinkTokenName
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$NextLinkTokenName
     )
 
     process
     {
         $InvokeRestMethod_Params = @{
-            Method=$Method
-            Headers=$Headers
-            Uri=$Uri
-            UseBasicParsing=$true
+            Method          = $Method
+            Headers         = $Headers
+            Uri             = $Uri
+            UseBasicParsing = $true
         }
         if ($PSBoundParameters.ContainsKey('Body'))
         {
-            $InvokeRestMethod_Params.Add('Body',$Body)
+            $InvokeRestMethod_Params.Add('Body', $Body)
         }
         $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop
-		$restResult
+        $restResult
 
-        while ($restResult.psobject.properties.Name -contains $NextLinkPropertyName)
+        if ($FollowNextLink.IsPresent)
         {
-            remove-variable -Name InvokeRestMethod_Params -ErrorAction SilentlyContinue
-            $InvokeRestMethod_Params = @{
-                Method='Get'
-                Headers=$Headers
-                UseBasicParsing=$true
-            }
-            if ($PSBoundParameters.ContainsKey('NextLinkTokenName'))
+            while ($restResult.psobject.properties.Name -contains $NextLinkPropertyName -and (-not [string]::IsNullOrEmpty($restResult."$NextLinkPropertyName")))
             {
+                remove-variable -Name InvokeRestMethod_Params -ErrorAction SilentlyContinue
+                $InvokeRestMethod_Params = @{
+                    Method          = $Method
+                    Headers         = $Headers
+                    UseBasicParsing = $true
+                }
+                if ($PSBoundParameters.ContainsKey('NextLinkTokenName'))
+                {
                 
-                $UriBuilder = [System.UriBuilder]::new($Uri)
-                $QueryStringBuilder = [System.Web.HttpUtility]::ParseQueryString($UriBuilder.Query)
-                $NextLinkTokenValue = $restResult."$NextLinkPropertyName".Substring($restResult."$NextLinkPropertyName".IndexOf($NextLinkTokenName) + $NextLinkTokenName.Length + 1)
-                $QueryStringBuilder.Add($NextLinkTokenName,$NextLinkTokenValue)
-                $UriBuilder.Query = $QueryStringBuilder.ToString()
-                $InvokeRestMethod_Params.Add('Uri',$UriBuilder.ToString()) 
+                    $UriBuilder = [System.UriBuilder]::new($Uri)
+                    $QueryStringBuilder = [System.Web.HttpUtility]::ParseQueryString($UriBuilder.Query)
+                    $NextLinkTokenValue = $restResult."$NextLinkPropertyName".Substring($restResult."$NextLinkPropertyName".IndexOf($NextLinkTokenName) + $NextLinkTokenName.Length + 1)
+                    $QueryStringBuilder.Add($NextLinkTokenName, $NextLinkTokenValue)
+                    $UriBuilder.Query = $QueryStringBuilder.ToString()
+                    $InvokeRestMethod_Params.Add('Uri', $UriBuilder.ToString()) 
+                }
+                elseif ($Method -eq 'Post')
+                {
+                    $InvokeRestMethod_Params.Add('Body', ($restResult."$NextLinkPropertyName" | ConvertTo-Json -Compress))
+                    $InvokeRestMethod_Params.Add('Uri', $Uri) 
+                }
+                else
+                {
+                    $InvokeRestMethod_Params.Add('Uri', $restResult."$NextLinkPropertyName") 
+                }
+                $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop 
+                $restResult
+                Write-Warning $restResult.Items[0].userPrincipalName
             }
-            else
-            {
-                $InvokeRestMethod_Params.Add('Uri',$restResult."$NextLinkPropertyName") 
-            }
-            $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop
-            $restResult
         }
     }
 }
@@ -78,18 +90,18 @@ function Invoke-ArhRestMethod
 function Get-ArhAuthorizationHeader
 {
     [CmdletBinding()]
-	param
-	(
-		#TenantId
-        [Parameter(Mandatory=$true)]
+    param
+    (
+        #TenantId
+        [Parameter(Mandatory = $true)]
         [string]$TenantId,
 
         #AccountId
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$AccountId,
 
         #Resource
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$Resource = 'https://management.core.windows.net/'
     )
 
@@ -102,9 +114,9 @@ function Get-ArhAuthorizationHeader
             Write-Error "Account: $AccountId is not authenticated against Tenant: $TenantId"
         }
 
-        $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId,[Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
-        $context = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId",$SelectedTenantContext[0].TokenCache)
-        $TokenResult = $context.AcquireTokenSilent($Resource,[Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId,$UserId)
+        $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
+        $context = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId", $SelectedTenantContext[0].TokenCache)
+        $TokenResult = $context.AcquireTokenSilent($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
         $TokenResult.CreateAuthorizationHeader()
     }
 }
