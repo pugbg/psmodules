@@ -81,7 +81,6 @@ function Invoke-ArhRestMethod
                 }
                 $restResult = Invoke-RestMethod @InvokeRestMethod_Params -ErrorAction Stop 
                 $restResult
-                Write-Warning $restResult.Items[0].userPrincipalName
             }
         }
     }
