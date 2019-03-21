@@ -148,3 +148,36 @@ function Remove-AzePolicyDefinition
     }
 }
 
+function Get-AzeADNestedGroupMembers
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [String] $GroupId,
+
+        [String] $MembershipType = "Direct"
+    )
+
+    process
+    {
+
+        $Members = Get-AzureRmADGroupMember -GroupObjectId $GroupId -ErrorAction Stop
+
+        foreach ($member in $Members)
+        {
+
+            if ($member.Type -eq "Group")
+            {
+                Get-AzeADNestedGroupMembers -GroupId $member.Id -MembershipType "Nested" -ErrorAction Stop
+            }
+            else
+            {
+                $member | select -Property *, @{n = 'MembershipType'; e = {$MembershipType}}
+            }
+
+        }
+
+    }
+}

@@ -8,5 +8,10 @@
         "**/bin": true,
         "**/.gitignore": true
     },
-    "powershell.scriptAnalysis.enable": false
+    //PowerShell main configuration
+    "powershell.powerShellExePath": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "powershell.scriptAnalysis.enable": false,
+
+    //Terminal
+    "terminal.integrated.shell.windows": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 }
