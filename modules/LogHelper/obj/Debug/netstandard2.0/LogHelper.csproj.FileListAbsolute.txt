@@ -1,0 +1,9 @@
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.csprojAssemblyReference.cache
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.csproj.CoreCompileInputs.cache
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.AssemblyInfoInputs.cache
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.AssemblyInfo.cs
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\bin\Debug\netstandard2.0\LogHelper.deps.json
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\bin\Debug\netstandard2.0\LogHelper.dll
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\bin\Debug\netstandard2.0\LogHelper.pdb
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.dll
+C:\Users\georgimilchevivanov\Documents\github\psmodules\modules\LogHelper\obj\Debug\netstandard2.0\LogHelper.pdb
