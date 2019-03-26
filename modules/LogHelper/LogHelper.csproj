@@ -3,7 +3,9 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>LogHelper</AssemblyName>
-    <Version>2.0.0.4</Version>
+    <Version>2.0.0.7</Version>
+    <OutputPath>bin\$(AssemblyName)\$(Version)</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

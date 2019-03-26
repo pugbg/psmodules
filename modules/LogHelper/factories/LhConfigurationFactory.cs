@@ -2,50 +2,63 @@
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Collections.Generic;
+using System.Collections;
 
 namespace pugbg.modules.loghelper
 {
     public class LhConfigurationFactory
     {
-        public static LhConfiguration Parse(Dictionary<string, object> dictionary)
+        public static LhConfiguration Parse(Hashtable dictionary)
         {
-            var result = new LhConfiguration();
+            //LHConfiguration ValidationRules
+            var validationRules = new Dictionary<string, validationEntry>();
+            validationRules.Add("Name", new validationEntry { Mandatory = true, Type = typeof(System.String) });
+            validationRules.Add("Default", new validationEntry { Mandatory = false, Type = typeof(System.Boolean), DefaultValue = false });
+            validationRules.Add("InitializationScript", new validationEntry { Mandatory = false, Type = typeof(ScriptBlock) });
+            validationRules.Add("MessageTypes", new validationEntry { Mandatory = false, Type = typeof(Dictionary<string, ScriptBlock>) });
             var validation = new Dictionary<string, string>();
 
-            if (!dictionary.ContainsKey("Name") || dictionary["Name"].GetType() != typeof(System.String))
+            var result = new LhConfiguration();
+
+            foreach (var vr in validationRules.Keys)
             {
-                validation.Add("Name", "Missing Configuration Element: 'Name' of type: 'System.String'");
+                if (dictionary.ContainsKey(vr))
+                {
+                    if (dictionary[vr].GetType() != validationRules[vr].Type)
+                    {
+                        validation.Add(vr, $"Configuration Element: '{vr}' should be of type: '{validationRules[vr].Type}'");
+                    }
+                    else
+                    {
+                        result.GetType().GetProperty(vr).SetValue(result, dictionary[vr]);
+                    }
+                }
+                else
+                {
+                    if (validationRules[vr].Mandatory)
+                    {
+                        validation.Add(vr, $"Missing Configuration Element: '{vr}' of type: '{validationRules[vr].Type}'");
+                    }
+                    else if (validationRules[vr].DefaultValue != null)
+                    {
+                        result.GetType().GetProperty(vr).SetValue(result, validationRules[vr].DefaultValue);
+                    }
+                }
             }
-            else
+
+            if (validation.Count > 0)
             {
-                result.Name = dictionary["Name"].ToString();
-            }
-            if (!dictionary.ContainsKey("Default") || dictionary["Default"].GetType() != typeof(System.Boolean))
-            {
-                validation.Add("Name", "Missing Configuration Element: 'Default' of type: 'System.Boolean'");
-            }
-            else
-            {
-                result.Default = (bool)dictionary["Name"];
-            }
-            if (!dictionary.ContainsKey("InitializationScript") || dictionary["InitializationScript"].GetType() != typeof(ScriptBlock))
-            {
-                validation.Add("Name", "Missing Configuration Element: 'InitializationScript' of type: 'ScriptBlock'");
-            }
-            else
-            {
-                result.InitializationScript = (ScriptBlock)dictionary["InitializationScript"];
-            }
-            if (!dictionary.ContainsKey("MessageTypes") || dictionary["MessageTypes"].GetType() != typeof(Dictionary<string, ScriptBlock>))
-            {
-                validation.Add("Name", "Missing Configuration Element: 'MessageTypes' of type: 'Dictionary<string, ScriptBlock>'");
-            }
-            else
-            {
-                result.MessageTypes = (Dictionary<string, ScriptBlock>)dictionary["MessageTypes"];
+                throw new Exception(String.Join(", ", validation.Values));
             }
 
             return result;
         }
+    }
+
+    class validationEntry
+    {
+        public bool Mandatory { get; set; }
+        public Type Type { get; set; }
+        public object DefaultValue { get; set; }
     }
 }

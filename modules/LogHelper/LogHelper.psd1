@@ -9,10 +9,10 @@
 @{
 
     # Script module or binary module file associated with this manifest.
-    RootModule           = 'LogHelper.psm1'
+    RootModule           = 'LogHelper.dll'
 
     # Version number of this module.
-    ModuleVersion        = '2.0.0.4'
+    ModuleVersion        = '2.0.0.5'
 
     # Supported PSEditions
     CompatiblePSEditions = @('Core', 'Desktop')
@@ -69,10 +69,10 @@
     # NestedModules = @()
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport    = 'Register-LhConfiguration', 'Write-LhEvent'
+    FunctionsToExport    = @()
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-    CmdletsToExport      = @()
+    CmdletsToExport      = @('Register-LhConfiguration')
 
     # Variables to export from this module
     # VariablesToExport = @()
@@ -93,9 +93,8 @@
     PrivateData          = @{
 
         #VersionControl of this module
-        VersionControl = '{"Hash":"18939BE25851BBA02C4871D97495B09D9D222AAF69F0F630D8FD1FC38ECC7751","HashAlgorithm":"SHA256","Version":"1.0.0.4"}'
 
-        PSData         = @{
+        PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
             # Tags = @()

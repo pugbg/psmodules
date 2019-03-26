@@ -2,6 +2,7 @@
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Collections.Generic;
+using System.Collections;
 
 namespace pugbg.modules.loghelper
 {
@@ -13,7 +14,7 @@ namespace pugbg.modules.loghelper
 
         //Parameter ConfigurationDefinition
         [Parameter(Mandatory = true, ParameterSetName = "Definition")]
-        public List<Dictionary<string, object>> ConfigurationDefinition { get; set; }
+        public Hashtable ConfigurationDefinition { get; set; }
 
         //Parameter JsonConfigurationDefinition
         [Parameter(Mandatory = true, ParameterSetName = "JsonDefinition")]
@@ -38,10 +39,7 @@ namespace pugbg.modules.loghelper
             switch (this.ParameterSetName)
             {
                 case "Definition":
-                    foreach (var cfd in this.ConfigurationDefinition)
-                    {
-                        configurations.Add(LhConfigurationFactory.Parse(cfd));
-                    }
+                    configurations.Add(LhConfigurationFactory.Parse(this.ConfigurationDefinition));
                     break;
 
                 default:
