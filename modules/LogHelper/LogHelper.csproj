@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>LogHelper</AssemblyName>
+    <Version>2.0.0.4</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PowerShellStandard.Library" Version="5.1.0-preview-06">
+      <PrivateAssets>All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="RoslynCodeTaskFactory" Version="2.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="*.psd1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+   <UsingTask TaskName="UpdatePSDVersionTask" TaskFactory="CodeTaskFactory" AssemblyFile="$(RoslynCodeTaskFactory)" Condition=" '$(RoslynCodeTaskFactory)' != '' ">
+    <ParameterGroup>
+    <InputFilename ParameterType="System.String" Required="true" />
+    <OutputFilename ParameterType="System.String" Required="true" />
+    <MatchExpression ParameterType="System.String" Required="true" />
+    <ReplacementText ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs">
+      <![CDATA[
+            File.WriteAllText(
+                OutputFilename,
+                Regex.Replace(File.ReadAllText(InputFilename), MatchExpression, ReplacementText)
+                );
+          ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+
+<Target Name="UpdatePSDVersion" AfterTargets="Build">
+  <UpdatePSDVersionTask InputFilename="$(OutputPath)$(AssemblyName).psd1" OutputFilename="$(OutputPath)$(AssemblyName).psd1" MatchExpression="ModuleVersion*=*.*'" ReplacementText="ModuleVersion = '$(Version)'" />
+</Target>
+
+</Project>

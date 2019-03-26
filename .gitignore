@@ -1,2 +1,2 @@
-#Ignore CC Azure Reporting bin folder
-/bin
+**/obj/
+**/bin/
