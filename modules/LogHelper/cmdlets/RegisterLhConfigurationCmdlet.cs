@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Management.Automation;
-using System.Management.Automation.Runspaces;
+using Microsoft.PowerShell.Commands;
 using System.Collections.Generic;
 using System.Collections;
 
@@ -40,6 +40,10 @@ namespace pugbg.modules.loghelper
             {
                 case "Definition":
                     configurations.Add(LhConfigurationFactory.Parse(this.ConfigurationDefinition));
+                    break;
+
+                case "PsdFile":
+                    var cmd = new Microsoft.PowerShell.Commands.ImportPowerShellDataFileCommand();
                     break;
 
                 default:

@@ -2,7 +2,7 @@
     //--- Common settings amongs all projects
     //--- Common settings Version 1.0.0.1
     //PowerShell main configuration
-    "powershell.powerShellExePath": "C:\\Users\\georgimilchevivanov\\Documents\\WindowsPowerShell\\6\\pwsh.exe",
+    "powershell.powerShellExePath": "C:\\Users\\gogbg\\Documents\\WindowsPowerShell\\ps\\6.0.5\\pwsh.exe",
     "powershell.startAutomatically": true,
     "powershell.helpCompletion": "BlockComment",
     "powershell.sideBar.CommandExplorerVisibility": false,
@@ -22,10 +22,10 @@
     //Editor
     "editor.showFoldingControls": "always",
     "editor.foldingStrategy": "indentation",
-    "editor.renderWhitespace": "all",
+    "editor.renderWhitespace": "none",
     "editor.formatOnSave": true,
     //Terminal
-    "terminal.integrated.shell.windows": "C:\\Users\\georgimilchevivanov\\Documents\\WindowsPowerShell\\6\\pwsh.exe",
+    "terminal.integrated.shell.windows": "C:\\Users\\gogbg\\Documents\\WindowsPowerShell\\ps\\6.0.5\\pwsh.exe",
     //Telemetry
     "telemetry.enableTelemetry": false,
     //Git
