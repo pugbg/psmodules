@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Management.Automation;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace pugbg.modules.loghelper
 {
@@ -7,28 +9,34 @@ namespace pugbg.modules.loghelper
     [OutputType(typeof(string[]))]
     public class GetPSModulePathCmdlet : Cmdlet
     {
-        #region Parameters
-
         //Parameter Scope
         [Parameter(Mandatory = false)]
         public EnvironmentVariableTarget[] Scope { get; set; } = { EnvironmentVariableTarget.Machine };
 
-        #endregion
-
-        #region Execution
-
         protected override void ProcessRecord()
         {
-            foreach (var scp in Scope)
+            WriteObject(GetPSModulePath.Execute(scope: this.Scope.ToList()), true);
+        }
+    }
+
+    internal class GetPSModulePath
+    {
+        internal static List<string> Execute(IEnumerable<EnvironmentVariableTarget> scope)
+        {
+            var result = new List<string>();
+            foreach (var scp in scope)
             {
                 var r = Environment.GetEnvironmentVariable("PsModulePath", scp);
                 if (!String.IsNullOrEmpty(r))
                 {
-                    WriteObject(r.Split(";".ToCharArray()), true);
+                    foreach (var e in r.Split(";".ToCharArray()))
+                    {
+                        result.Add(e);
+                    }
                 }
             }
-        }
 
-        #endregion
+            return result;
+        }
     }
 }

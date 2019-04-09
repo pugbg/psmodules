@@ -10,8 +10,6 @@ namespace pugbg.modules.loghelper
     [OutputType(typeof(void))]
     public class SetPSModulePathCmdlet : Cmdlet
     {
-        #region Parameters
-
         //Parameter Path
         [Parameter(Mandatory = true)]
         public String[] Path { get; set; }
@@ -24,15 +22,19 @@ namespace pugbg.modules.loghelper
         [Parameter(Mandatory = false)]
         public EnvironmentVariableTarget[] Scope { get; set; } = { EnvironmentVariableTarget.Machine };
 
-        #endregion
-
-        #region Execution
-
         protected override void ProcessRecord()
         {
-            if (!Force.IsPresent)
+            SetPSModulePath.Execute(path: this.Path.ToList(), force: this.Force.IsPresent, scope: this.Scope.ToList());
+        }
+    }
+
+    internal class SetPSModulePath
+    {
+        internal static void Execute(IEnumerable<String> path, bool force, IEnumerable<EnvironmentVariableTarget> scope)
+        {
+            if (!force)
             {
-                foreach (var p in Path)
+                foreach (var p in path)
                 {
                     if (!Directory.Exists(p))
                     {
@@ -41,12 +43,10 @@ namespace pugbg.modules.loghelper
                 }
             }
 
-            foreach (var scp in Scope)
+            foreach (var scp in scope)
             {
-                Environment.SetEnvironmentVariable("PsModulePath", String.Join(";", Path), scp);
+                Environment.SetEnvironmentVariable("PsModulePath", String.Join(";", path), scp);
             }
         }
-
-        #endregion
     }
 }

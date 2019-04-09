@@ -10,8 +10,6 @@ namespace pugbg.modules.loghelper
     [OutputType(typeof(void))]
     public class AddPSModulePathEntryCmdlet : Cmdlet
     {
-        #region Parameters
-
         //Parameter Path
         [Parameter(Mandatory = true)]
         public String[] Path { get; set; }
@@ -24,16 +22,20 @@ namespace pugbg.modules.loghelper
         [Parameter(Mandatory = false)]
         public EnvironmentVariableTarget[] Scope { get; set; } = { EnvironmentVariableTarget.Machine };
 
-        #endregion
-
-        #region Execution
-
         protected override void ProcessRecord()
         {
+            AddPSModulePathEntry.Execute(path: this.Path.ToList(), force: this.Force.IsPresent, scope: this.Scope.ToList());
+        }
+    }
+
+    internal class AddPSModulePathEntry
+    {
+        internal static void Execute(IEnumerable<String> path, bool force, IEnumerable<EnvironmentVariableTarget> scope)
+        {
             //Check if Path exists
-            if (!Force.IsPresent)
+            if (!force)
             {
-                foreach (var p in Path)
+                foreach (var p in path)
                 {
                     if (!Directory.Exists(p))
                     {
@@ -42,17 +44,13 @@ namespace pugbg.modules.loghelper
                 }
             }
 
-            foreach (var scp in Scope)
+            foreach (var scp in scope)
             {
                 //Get Current Entries
-                var curEntries = new GetPSModulePathCmdlet() { Scope = new[] { scp } }.Invoke<string>().Where(x => !String.IsNullOrEmpty(x));
-                var newEntries = Path.Union(curEntries).ToArray();
-                WriteVerbose(String.Join(",", newEntries));
-                var cmd = new SetPSModulePathCmdlet() { Path = newEntries, Scope = new[] { scp }, Force = true };
-                cmd.Invoke();
+                var curEntries = GetPSModulePath.Execute(scope: new List<EnvironmentVariableTarget> { scp });
+                var newEntries = path.Union(curEntries).ToList();
+                SetPSModulePath.Execute(path: newEntries, force: true, scope: new List<EnvironmentVariableTarget> { scp });
             }
         }
     }
-
-    #endregion
 }

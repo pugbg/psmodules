@@ -1,9 +1,5 @@
 ﻿using System;
 using System.Management.Automation;
-<<<<<<< HEAD
-=======
-using Microsoft.PowerShell.Commands;
->>>>>>> b2dfa5b6a56e194c83b6baeccc005e201bb393ba
 using System.Collections.Generic;
 using System.Collections;
 using Microsoft.PowerShell.Commands;
