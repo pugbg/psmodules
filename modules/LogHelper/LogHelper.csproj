@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>LogHelper</AssemblyName>
-    <Version>2.0.0.7</Version>
+    <Version>2.0.0.8</Version>
     <OutputPath>bin\$(AssemblyName)\$(Version)</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
@@ -13,6 +13,7 @@
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="RoslynCodeTaskFactory" Version="2.0.7" />
+    <Reference Include="Microsoft.PowerShell.Commands.Utility, Version=6.1.3.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35" />
   </ItemGroup>
 
   <ItemGroup>

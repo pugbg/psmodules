@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Management.Automation;
-using System.Management.Automation.Runspaces;
 using System.Collections.Generic;
 using System.Collections;
+using Microsoft.PowerShell.Commands;
 
 namespace pugbg.modules.loghelper
 {
@@ -42,12 +42,15 @@ namespace pugbg.modules.loghelper
                     configurations.Add(LhConfigurationFactory.Parse(this.ConfigurationDefinition));
                     break;
 
+                case "PsdFile":
+                    Microsoft.PowerShell.Commands
+
                 default:
                     throw new Exception($"Unsupported ParameterSetName: {this.ParameterSetName}");
             }
 
             //return result
-            WriteObject(configurations);
+            WriteObject(sendToPipeline: configurations, enumerateCollection: true);
         }
 
         #endregion

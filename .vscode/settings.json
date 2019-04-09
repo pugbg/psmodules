@@ -2,7 +2,7 @@
     //--- Common settings amongs all projects
     //--- Common settings Version 1.0.0.1
     //PowerShell main configuration
-    "powershell.powerShellExePath": "C:\\Users\\georgimilchevivanov\\Documents\\WindowsPowerShell\\6\\pwsh.exe",
+    "powershell.powerShellExePath": "C:\\ProgramData\\WindowsPowerShell\\6\\pwsh.exe",
     "powershell.startAutomatically": true,
     "powershell.helpCompletion": "BlockComment",
     "powershell.sideBar.CommandExplorerVisibility": false,
@@ -25,7 +25,7 @@
     "editor.renderWhitespace": "all",
     "editor.formatOnSave": true,
     //Terminal
-    "terminal.integrated.shell.windows": "C:\\Users\\georgimilchevivanov\\Documents\\WindowsPowerShell\\6\\pwsh.exe",
+    "terminal.integrated.shell.windows": "C:\\ProgramData\\WindowsPowerShell\\6\\pwsh.exe",
     //Telemetry
     "telemetry.enableTelemetry": false,
     //Git

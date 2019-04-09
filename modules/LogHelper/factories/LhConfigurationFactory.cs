@@ -15,7 +15,7 @@ namespace pugbg.modules.loghelper
             validationRules.Add("Name", new validationEntry { Mandatory = true, Type = typeof(System.String) });
             validationRules.Add("Default", new validationEntry { Mandatory = false, Type = typeof(System.Boolean), DefaultValue = false });
             validationRules.Add("InitializationScript", new validationEntry { Mandatory = false, Type = typeof(ScriptBlock) });
-            validationRules.Add("MessageTypes", new validationEntry { Mandatory = false, Type = typeof(Dictionary<string, ScriptBlock>) });
+            validationRules.Add("MessageTypes", new validationEntry { Mandatory = false, Type = typeof(Hashtable) });
             var validation = new Dictionary<string, string>();
 
             var result = new LhConfiguration();
