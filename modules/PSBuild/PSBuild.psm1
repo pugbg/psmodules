@@ -1961,7 +1961,7 @@ function Build-PSSolution
 				$Scripts = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1  -ErrorAction Stop
 				if ($ScriptPath.ContainsKey('Exclude'))
 				{
-					$Scripts = $Scripts | where-object {$ScriptPath.Exclude -notcontains $_}
+					$Scripts = $Scripts | where-object {$ScriptPath.Exclude -notcontains $_.Name}
 				}
 				$BuildPSScript_Params = @{
 					SourcePath=$Scripts
