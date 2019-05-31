@@ -1958,7 +1958,11 @@ function Build-PSSolution
 
 			foreach ($ScriptPath in $SolutionConfig.SolutionStructure.ScriptPath)
 			{
-				$Scripts = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1 -ErrorAction Stop
+				$Scripts = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1  -ErrorAction Stop
+				if ($ScriptPath.ContainsKey('Exclude'))
+				{
+					$Scripts = $Scripts | where-object {$ScriptPath.Exclude -notcontains $_}
+				}
 				$BuildPSScript_Params = @{
 					SourcePath=$Scripts
 					DestinationPath=$ScriptPath.BuildPath
@@ -2133,71 +2137,6 @@ function Publish-PSSolution
 			Write-Error "Publish Solution Modules failed. Details: $_" -ErrorAction 'Stop'
 		}
     }
-}
-
-function New-PSSolutionConfiguration
-{
-    [CmdletBinding()]
-    [OutputType([void])]
-    param
-    (
-        #Path
-        [Parameter(Mandatory=$true,ParameterSetName='NoRemoting_Default')]
-        [System.IO.FileInfo]$Path,
-
-		#Force
-        [Parameter(Mandatory=$false,ParameterSetName='NoRemoting_Default')]
-        [switch]$Force
-    )
-
-    Process
-    {
-		$ConfigExist = Test-Path $Path.FullName
-		if (-not $ConfigExist -or $Force.IsPresent)
-		{
-			$SolutionConfigurationAsString = @'
-$UserVariables = @{
-}
-
-$SolutionStructure=@{
-	#Example: @(@{SourcePath='c:\modules'},@{BuildPath='c:\modules bin'})
-	ModulesPath=@()
-	ScriptPath=@()
-}
-$Build=@{
-	AutoloadbuiltModulesForUser=$true
-	AutoResolveDependantModules=$true
-	CheckCommandReferences=@{
-		Enabled=$true
-		ExcludedSources=@()
-		ExcludedCommands=@()
-	}
-	CheckDuplicateCommandNames=$true
-	UpdateModuleReferences=$true
-}
-$Packaging=@{
-	#Example: @{Name='';SourceLocation='';PublishLocation='';Credential='';Priority=''}
-	PSGetSearchRepositories=@()
-	PSGetPublishRepositories=@()
-	#List of Modules that should be published to PSGet Repository
-	PublishAllModules=$true
-	PublishSpecificModules=@()
-	PublishExcludeModules=@()
-}
-$BuildActions=@{
-	#Example: @(@{Name='Step1';ScriptBlock={Start-Something}})
-	PostBuild=@()
-}
-
-'@
-			
-			Out-File -FilePath $Path.FullName -InputObject $SolutionConfigurationAsString -Force:$Force.IsPresent -Append:$false -ErrorAction Stop
-		}
-		else
-		{
-			Write-Error "File already exist: $($Path.FullName)" -ErrorAction Stop
-		}
-	}
 }
 
 function Get-PSSolutionConfiguration
