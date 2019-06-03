@@ -2022,7 +2022,7 @@ function Build-PSSolution
                 foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
                 {
                     $Modules = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop
-                    $BuildPSSolutionModule_Params = @{
+                    $BuildPSModule_Params = @{
                         SourcePath                          = $Modules
                         DestinationPath                     = $ModulePath.BuildPath
                         ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
@@ -2035,9 +2035,9 @@ function Build-PSSolution
 					}
 					if ($SolutionConfig.GlobalSettings.Proxy.Uri)
 					{
-						$BuildPSSolutionModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
+						$BuildPSModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
 					}
-                    Build-PSModule @BuildPSSolutionModule_Params -ErrorAction Stop
+                    Build-PSModule @BuildPSModule_Params -ErrorAction Stop
                 }
 		
                 Write-Verbose "Build PSModules completed"
@@ -2081,7 +2081,7 @@ function Build-PSSolution
 				}
 				if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
 				{
-					$BuildPSSolutionModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
+					$BuildPSScript_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
 				}
                 Build-PSScript @BuildPSScript_Params -ErrorAction Stop
             }
