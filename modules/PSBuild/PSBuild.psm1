@@ -2032,7 +2032,11 @@ function Build-PSSolution
                         ModuleValidationCache               = $ModuleValidationCache
                         UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
                         PsGetModuleValidationCache          = $PsGetModuleValidationCache
-                    }
+					}
+					if ($SolutionConfig.GlobalSettings.Proxy.Uri)
+					{
+						$BuildPSSolutionModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
+					}
                     Build-PSModule @BuildPSSolutionModule_Params -ErrorAction Stop
                 }
 		
@@ -2074,7 +2078,11 @@ function Build-PSSolution
                 if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
                 {
                     $BuildPSScript_Params.Add('DependencyDestinationPath', $ScriptPath.DependencyDestinationPath)
-                }
+				}
+				if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
+				{
+					$BuildPSSolutionModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
+				}
                 Build-PSScript @BuildPSScript_Params -ErrorAction Stop
             }
       

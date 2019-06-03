@@ -12,7 +12,7 @@
 RootModule = 'PSBuild.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.1.103'
+ModuleVersion = '1.0.1.105'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -101,7 +101,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"3D77144252E7BA3A2AEA73DF1BCB554378711D56C8D387FCF790C1DB1CC1709D","HashAlgorithm":"SHA256","Version":"1.0.1.103"}'
+    VersionControl = '{"Hash":"CA86B85C2175F919894F6EB3F01B562B0FF163C1168A94C759733FABB642DB8B","HashAlgorithm":"SHA256","Version":"1.0.1.105"}'
 
     PSData = @{
 
