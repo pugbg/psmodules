@@ -1,6 +1,6 @@
 #region Private Functions
 
-function priv_Export-PSArtefact
+function priv_Export-Artifact
 {
     [CmdletBinding()]
     [OutputType([void])]
@@ -150,11 +150,11 @@ function priv_Publish-PSModule
 
         #VerbosePrefix
         [Parameter(Mandatory = $false)]
-		[string]$VerbosePrefix,
+        [string]$VerbosePrefix,
 		
-		#Proxy
-		[Parameter(Mandatory = $false)]
-		[uri]$Proxy
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy
     )
 
     Process
@@ -255,8 +255,8 @@ function priv_Publish-PSModule
             if ($PSBoundParameters.ContainsKey('Credential'))
             {
                 $PublishModule_CommonParams.Add('Credential', $Credential)
-			}
-			if ($PSBoundParameters.ContainsKey('Proxy'))
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy'))
             {
                 $PublishModule_CommonParams.Add('Proxy', $Proxy)
             }
@@ -533,13 +533,13 @@ function priv_Analyse-ItemDependancies
                         $MissingCommandsAnalysis = $LocalCommandAnalysis | Where-Object { $_.IsFound -eq $false }
                         if ($MissingCommandsAnalysis)
                         {
-							$AssertPSRepository_Params = @{
-								PSGetRepository=$JobParams['PSGetRepository']
-							}
-							if ($JobParams.ContainsKey('Proxy'))
-							{
-								$AssertPSRepository_Params.Add('Proxy',$JobParams['Proxy'])
-							}
+                            $AssertPSRepository_Params = @{
+                                PSGetRepository = $JobParams['PSGetRepository']
+                            }
+                            if ($JobParams.ContainsKey('Proxy'))
+                            {
+                                $AssertPSRepository_Params.Add('Proxy', $JobParams['Proxy'])
+                            }
                             Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
 
                             foreach ($Repo in $JobParams['PSGetRepository'])
@@ -556,8 +556,8 @@ function priv_Analyse-ItemDependancies
                                     if ($Repo.ContainsKey('Credential'))
                                     {
                                         $FindModule_Params.Add('Credential', $Repo.Credential)
-									}
-									if ($JobParams.ContainsKey('Proxy'))
+                                    }
+                                    if ($JobParams.ContainsKey('Proxy'))
                                     {
                                         $FindModule_Params.Add('Proxy', $JobParams['Proxy'])
                                     }
@@ -1187,8 +1187,8 @@ function Build-PSModule
                                 if ($PSBoundParameters.ContainsKey('PSGetRepository'))
                                 {
                                     $priv_AnalyseItemDependancies_Params.Add('PSGetRepository', $PSGetRepository)
-								}
-								if ($PSBoundParameters.ContainsKey('Proxy'))
+                                }
+                                if ($PSBoundParameters.ContainsKey('Proxy'))
                                 {
                                     $priv_AnalyseItemDependancies_Params.Add('Proxy', $Proxy)
                                 }
@@ -1225,7 +1225,7 @@ function Build-PSModule
                         #Export Module to DestinationPath
                         try
                         {
-                            priv_Export-PSArtefact -Type Module -SourcePath $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase -Version $ModuleValidationCache.Value[$moduleName].ModuleInfo.Version -DestinationPath $DestinationPath -Verbose:$false
+                            priv_Export-Artifact -Type Module -SourcePath $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase -Version $ModuleValidationCache.Value[$moduleName].ModuleInfo.Version -DestinationPath $DestinationPath -Verbose:$false
                         }
                         catch
                         {
@@ -1506,11 +1506,11 @@ function Build-PSScript
                                     if ($item.ContainsKey('Credential'))
                                     {
                                         $PSGet_Params.Add('Credential', $item.Credential)
-									}
-									if ($PSBoundParameters.ContainsKey('Proxy'))
+                                    }
+                                    if ($PSBoundParameters.ContainsKey('Proxy'))
                                     {
                                         $PSGet_Params.Add('Proxy', $Proxy)
-									}	
+                                    }	
                                     try
                                     {
                                         Remove-Variable -Name NugetDependency -ErrorAction SilentlyContinue
@@ -1616,16 +1616,16 @@ function Build-PSScript
                                 #Search for module in the Solution
                                 if ((-not $ModDependencyFound) -and ($ModuleValidationCache.Value).ContainsKey($dependantModuleName))
                                 {
-									$BuildPSModule_Params = @{
-										SourcePath=$ModuleValidationCache.Value[$dependantModuleName].ModuleInfo.ModuleBase
-										DestinationPath=$DependencyDestinationPath
-										ResolveDependancies=$ResolveDependancies.IsPresent
-										ModuleValidationCache=$ModuleValidationCache
-									}
-									if ($PSBoundParameters.ContainsKey('Proxy'))
-									{
-										$BuildPSModule_Params.Add('Proxy',$Proxy)
-									}
+                                    $BuildPSModule_Params = @{
+                                        SourcePath            = $ModuleValidationCache.Value[$dependantModuleName].ModuleInfo.ModuleBase
+                                        DestinationPath       = $DependencyDestinationPath
+                                        ResolveDependancies   = $ResolveDependancies.IsPresent
+                                        ModuleValidationCache = $ModuleValidationCache
+                                    }
+                                    if ($PSBoundParameters.ContainsKey('Proxy'))
+                                    {
+                                        $BuildPSModule_Params.Add('Proxy', $Proxy)
+                                    }
                                     Build-PSModule @BuildPSModule_Params -ErrorAction Stop
                                     $ModDependencyFound = $true
                                 }
@@ -1670,8 +1670,8 @@ function Build-PSScript
                                         if ($ModuleRepo.ContainsKey('Credential'))
                                         {
                                             $PSGet_Params.Add('Credential', $ModuleRepo.Credential)
-										}
-										if ($PSBoundParameters.ContainsKey('Proxy'))
+                                        }
+                                        if ($PSBoundParameters.ContainsKey('Proxy'))
                                         {
                                             $PSGet_Params.Add('Proxy', $Proxy)
                                         }
@@ -1762,8 +1762,8 @@ function Build-PSScript
                                 if ($PSBoundParameters.ContainsKey('PSGetRepository'))
                                 {
                                     $priv_AnalyseItemDependancies_Params.Add('PSGetRepository', $PSGetRepository)
-								}
-								if ($PSBoundParameters.ContainsKey('Proxy'))
+                                }
+                                if ($PSBoundParameters.ContainsKey('Proxy'))
                                 {
                                     $priv_AnalyseItemDependancies_Params.Add('Proxy', $Proxy)
                                 }
@@ -1800,7 +1800,7 @@ function Build-PSScript
                         #Export Script to DestinationPath
                         try
                         {
-                            priv_Export-PSArtefact -Type Script -SourcePath $AllScriptValidation[$scriptName].ScriptInfo.Path -DestinationPath $DestinationPath -Verbose:$false
+                            priv_Export-Artifact -Type Script -SourcePath $AllScriptValidation[$scriptName].ScriptInfo.Path -DestinationPath $DestinationPath -Verbose:$false
                         }
                         catch
                         {
@@ -1851,11 +1851,11 @@ function Publish-PSModule
 
         #SkipVersionValidation
         [Parameter(Mandatory = $false)]
-		[switch]$SkipVersionValidation,
+        [switch]$SkipVersionValidation,
 		
-		#Proxy
+        #Proxy
         [Parameter(Mandatory = $false)]
-		[uri]$Proxy
+        [uri]$Proxy
     )
 
     Process
@@ -1865,13 +1865,13 @@ function Publish-PSModule
         {
             Write-Verbose "Check if Repository is already registered started"
 			
-			$AssertPSRepository_Params = @{
-				PSGetRepository=$PSGetRepository
-			}
-			if ($PSBoundParameters.ContainsKey('Proxy'))
-			{
-				$AssertPSRepository_Params.Add('Proxy',$Proxy)
-			}
+            $AssertPSRepository_Params = @{
+                PSGetRepository = $PSGetRepository
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy'))
+            {
+                $AssertPSRepository_Params.Add('Proxy', $Proxy)
+            }
             Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
 			
             Write-Verbose "Check if Repository is already registered completed"
@@ -1910,11 +1910,11 @@ function Publish-PSModule
                 if ($PSGetRepository.ContainsKey('NuGetApiKey'))
                 {
                     $PublishModuleAndDependacies_Params.Add('NuGetApiKey', $PSGetRepository.NuGetApiKey)
-				}
-				if ($PSBoundParameters.ContainsKey('Proxy'))
-				{
-					$PublishModuleAndDependacies_Params.Add('Proxy',$Proxy)
-				}
+                }
+                if ($PSBoundParameters.ContainsKey('Proxy'))
+                {
+                    $PublishModuleAndDependacies_Params.Add('Proxy', $Proxy)
+                }
                 priv_Publish-PSModule @PublishModuleAndDependacies_Params -ErrorAction Stop -Verbose -VerbosePrefix "Publish Module:$moduleName in progress. "
 
                 Write-Verbose "Publish Module:$moduleName completed"
@@ -1979,21 +1979,66 @@ function Build-PSSolution
         {
             Write-Verbose "Configure PS Environment started"
 
-            if ($SolutionConfig.SolutionStructure.ModulesPath.BuildPath)
+            $DependancyFolders = [System.Collections.Generic.List[string]]::new()
+            foreach ($mp in $SolutionConfig.SolutionStructure.ModulesPath)
             {
-                $TempModulePaths = $SolutionConfig.SolutionStructure.ModulesPath.BuildPath
-                if ($SolutionConfig.Build.AutoloadbuiltModulesForUser)
+                if ($mp.ContainsKey('BuildPath'))
                 {
+                    $DependancyFolders.Add($mp.BuildPath)
+                }
+            }
+            foreach ($mp in $SolutionConfig.SolutionStructure.ScriptPath)
+            {
+                if ($mp.ContainsKey('DependencyDestinationPath'))
+                {
+                    $DependancyFolders.Add($mp.DependencyDestinationPath)
+                }
+                elseif ($mp.ContainsKey('BuildPath'))
+                {
+                    $DependancyFolders.Add($mp.BuildPath)
+                }
+            }
 
-                    Write-Verbose "Configure PS Environment in progress. Enable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
-                    Add-PSModulePathEntry -Path $TempModulePaths -Scope User, Process -ErrorAction Stop -Force
+            if ($DependancyFolders.Count -gt 0)
+            {
+                $AddRemove_PSModulePathEntry_CommonParams = @{
+                    path  = $DependancyFolders
+                    Scope = @('User', 'Process')
+                }
+
+                #Check if AutoloadDependanciesScope are defined in config
+                if ($SolutionConfig.Build.AutoloadDependanciesScope)
+                {
+                    $AddRemove_PSModulePathEntry_CommonParams['Scope'] = $SolutionConfig.Build.AutoloadDependanciesScope
+                }
+
+                #Calculate ProfilesNotInScope
+                #$ProfilesNotInScope = [System.Collections.Generic.List[string]]::new()
+                #foreach ($scp in @('User','Process','Machine'))
+                #{
+                #    if ($AddRemove_PSModulePathEntry_CommonParams['Scope'] -notcontains $scp)
+                #    {
+                #        $ProfilesNotInScope.add($scp)
+                #    }
+                #}
+
+                if ($SolutionConfig.Build.AutoloadDependancies)
+                {
+                    Write-Verbose "Configure PS Environment in progress. Enable Module autoloading for: $($DependancyFolders -join ',')"
+                    Add-PSModulePathEntry @AddRemove_PSModulePathEntry_CommonParams -Force -ErrorAction Stop
+
+                    #if ($ProfilesNotInScope.Count -gt 0)
+                    #{
+                    #    Remove-PSModulePathEntry -Path $DependancyFolders -Scope $ProfilesNotInScope -ErrorAction Stop -WarningAction SilentlyContinue
+                    #}
                 }
                 else
                 {
-                    Write-Verbose "Configure PS Environment in progress. Disable BuildPath($($TempModulePaths -join ',')) Module Autoloading"
-                    Remove-PSModulePathEntry -Path $TempModulePaths -Scope User, Process -ErrorAction Stop -WarningAction SilentlyContinue
+                    Write-Verbose "Configure PS Environment in progress. Disable Module autoloading for: $($DependancyFolders -join ',')"
+                    Remove-PSModulePathEntry @AddRemove_PSModulePathEntry_CommonParams -ErrorAction Stop -WarningAction SilentlyContinue
                 }
             }
+
             Write-Verbose "Configure PS Environment completed"
         }
         catch
@@ -2032,11 +2077,11 @@ function Build-PSSolution
                         ModuleValidationCache               = $ModuleValidationCache
                         UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
                         PsGetModuleValidationCache          = $PsGetModuleValidationCache
-					}
-					if ($SolutionConfig.GlobalSettings.Proxy.Uri)
-					{
-						$BuildPSModule_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
-					}
+                    }
+                    if ($SolutionConfig.GlobalSettings.Proxy.Uri)
+                    {
+                        $BuildPSModule_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
+                    }
                     Build-PSModule @BuildPSModule_Params -ErrorAction Stop
                 }
 		
@@ -2078,11 +2123,11 @@ function Build-PSSolution
                 if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
                 {
                     $BuildPSScript_Params.Add('DependencyDestinationPath', $ScriptPath.DependencyDestinationPath)
-				}
-				if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
-				{
-					$BuildPSScript_Params.Add('Proxy',$SolutionConfig.GlobalSettings.Proxy.Uri)
-				}
+                }
+                if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
+                {
+                    $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
+                }
                 Build-PSScript @BuildPSScript_Params -ErrorAction Stop
             }
       

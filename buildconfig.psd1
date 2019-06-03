@@ -12,7 +12,8 @@ $SolutionStructure=@{
 	ScriptPath=@()
 }
 $Build=@{
-	AutoloadbuiltModulesForUser=$false
+	AutoloadDependancies=$true
+	AutoloadDependanciesScope=@('Process')
 	AutoResolveDependantModules=$true
 	CheckCommandReferences=@{
 		Enabled=$true
