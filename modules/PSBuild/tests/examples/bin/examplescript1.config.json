@@ -1,0 +1,8 @@
+{
+    "RequiredModules":[
+        {
+            "Name":"PSHelper",
+            "Version":"1.0.0.56"
+        }
+    ]
+}

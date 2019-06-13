@@ -30,7 +30,7 @@ function priv_Export-Artifact
 
         #Type
         [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
-        [ValidateSet('Script', 'Module')]
+        [ValidateSet('Script', 'Module','ScriptWithConfig')]
         [string]$Type
     )
 
@@ -53,6 +53,29 @@ function priv_Export-Artifact
                         $null = New-Item -Path $DestinationPath -ItemType Directory -ErrorAction Stop
                     }
                     $null = Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+                }
+
+                break
+            }
+
+            'ScriptWithConfig'
+            {
+                #Check if Source and Destination are the same
+                $SourceFolder = Split-Path -Path $SourcePath -Parent -ErrorAction Stop
+                if ($SourceFolder -eq $DestinationPath)
+                {
+                    #Do nothing
+                }
+                else
+                {
+                    $ScriptConfigFileName = "$(([System.IO.FileInfo]$SourcePath).BaseName).config.json"
+                    $ScriptConfigFilePath = Join-Path -Path $SourceFolder -ChildPath $ScriptConfigFileName
+                    if (-not (Test-Path $DestinationPath))
+                    {
+                        $null = New-Item -Path $DestinationPath -ItemType Directory -ErrorAction Stop
+                    }
+                    $null = Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+                    $null = Copy-Item -Path $ScriptConfigFilePath -Destination $DestinationPath -Force -ErrorAction Stop
                 }
 
                 break
@@ -1255,47 +1278,51 @@ function Build-PSScript
     param
     (
         #SourcePath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $true)]
         [System.IO.FileInfo[]]$SourcePath,
 
         #DestinationPath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $true)]
         [System.IO.DirectoryInfo]$DestinationPath,
 
         #DependencyDestinationPath
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [System.IO.DirectoryInfo]$DependencyDestinationPath,
 
+        #UseScriptConfigFile
+        [Parameter(Mandatory = $false)]
+        [switch]$UseScriptConfigFile,
+
         #ResolveDependancies
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$ResolveDependancies,
 
         #CheckCommandReferences
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$CheckCommandReferences,
 
         #CheckCommandReferencesConfiguration
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [psobject]$CheckCommandReferencesConfiguration,
 
         #UpdateModuleReferences
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$UpdateModuleReferences,
 
         #PSGetRepository
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [hashtable[]]$PSGetRepository,
 
         #ModuleValidation
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
-        [ref]$ModuleValidationCache,
+        [Parameter(Mandatory = $false)]
+        [ref]$ModuleValidationCache = [ref]@{},
 
         #PsGetModuleValidation
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [ref]$PsGetModuleValidationCache,
 
         #Proxy
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [uri]$Proxy
     )
     
@@ -1341,7 +1368,17 @@ function Build-PSScript
                     $scriptName = $Script.BaseName
                     if (-not $AllScriptValidation.ContainsKey($scriptName))
                     {
-                        $null = $AllScriptValidation.Add($scriptName, (Test-PSScript -ScriptPath $Script.FullName -ErrorAction Stop))
+                        Remove-variable -name PSScriptValidation -ErrorAction SilentlyContinue
+                        $TestPSScript_Params = @{
+                            ScriptPath=$Script.FullName
+                        }
+                        if ($UseScriptConfigFile.IsPresent)
+                        {
+                            $TestPSScript_Params.Add('UseScriptConfigFile',$true)
+                        }
+                        $PSScriptValidation = Test-PSScript @TestPSScript_Params -ErrorAction Stop
+                        
+                        $null = $AllScriptValidation.Add($scriptName, $PSScriptValidation)
                     }
                 }
             }
@@ -1440,11 +1477,26 @@ function Build-PSScript
         foreach ($Script in $SourcePath)
         {
             $scriptName = $Script.BaseName
+
+            #Get ScriptRequiredModules_All and ScriptRequiredModules_NotExternal
+            Remove-Variable -Name ScriptRequiredModules -ErrorAction SilentlyContinue
+            Remove-Variable -Name ScriptRequiredModules_NotExternal -ErrorAction SilentlyContinue
+            if ($UseScriptConfigFile.IsPresent)
+            {
+                $ScriptRequiredModules_All = $AllScriptValidation[$scriptName].ScriptConfig.RequiredModules
+                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptName].ScriptConfig.RequiredModules | Where-Object { $AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
+            }
+            else
+            {
+                $ScriptRequiredModules_All = $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules
+                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules | Where-Object { $AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
+            }
+
             if ($AllScriptValidation[$scriptName].ScriptInfo)
             {
                 $scriptVersion = $AllScriptValidation[$scriptName].ScriptInfo.Version
 
-                Write-Verbose "Build Script:$scriptName/$scriptVersion started"
+                Write-Verbose "Build Script: $scriptName/$scriptVersion started"
 
                 #Check if Script is already built
                 try
@@ -1465,7 +1517,7 @@ function Build-PSScript
                     }
 
                     #Check if Module Dependancies are valid versions
-                    foreach ($DepModule in $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules)
+                    foreach ($DepModule in $ScriptRequiredModules_All)
                     {
                         $depModuleName = $DepModule.Name
                         $depModuleVersion = $DepModule.Version
@@ -1552,7 +1604,7 @@ function Build-PSScript
                             #Check if DepModule ref version is the latest
                             if ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName) -and ($PsGetModuleValidationCache.Value[$depModuleName].Version -gt $depModuleVersion))
                             {
-                                Write-Warning "Build Script:$scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleName/$depModuleVersion is not the latest version"
+                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleName/$depModuleVersion is not the latest version"
                                 if ($UpdateModuleReferences.IsPresent)
                                 {
                                     $ScriptDependanciesValid = $false
@@ -1595,7 +1647,7 @@ function Build-PSScript
                 #Build Script if not already built
                 if ($ScriptAlreadyBuild)
                 {
-                    Write-Verbose "Build Script:$scriptName/$scriptVersion skipped, already built"
+                    Write-Verbose "Build Script: $scriptName/$scriptVersion skipped, already built"
                 }
                 else
                 {
@@ -1605,13 +1657,12 @@ function Build-PSScript
                         #Resolve Dependancies
                         if ($ResolveDependancies.IsPresent)
                         {
-                            $Dependancies = $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules | Where-Object { $AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
-                            foreach ($ModDependency in $Dependancies)
+                            foreach ($ModDependency in $ScriptRequiredModules_NotExternal)
                             {
                                 $dependantModuleName = $ModDependency.Name
                                 $dependantModuleVersion = $ModDependency.Version
 
-                                Write-Verbose "Build Script:$scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion started"
+                                Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion started"
                                 $ModDependencyFound = $false
                                 #Search for module in the Solution
                                 if ((-not $ModDependencyFound) -and ($ModuleValidationCache.Value).ContainsKey($dependantModuleName))
@@ -1656,7 +1707,7 @@ function Build-PSScript
                                         $ModuleRepo = $PSGetRepository | Where-Object { $_.Name -eq ($NuGetDependancyHandle.Repository) }
 
                                         #Downloading NugetPackage
-                                        Write-Verbose "Build Script:$scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion in progress. Downloading PSGetPackage: $($NuGetDependancyHandle.Name)/$($NuGetDependancyHandle.Version)"
+                                        Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion in progress. Downloading PSGetPackage: $($NuGetDependancyHandle.Name)/$($NuGetDependancyHandle.Version)"
                                         if (-not (Test-Path $DependencyDestinationPath))
                                         {
                                             $null = New-Item -Path $DependencyDestinationPath -ItemType Directory -ErrorAction Stop
@@ -1683,18 +1734,18 @@ function Build-PSScript
                                 #Throw Not Found
                                 if ($ModDependencyFound)
                                 {
-                                    Write-Verbose "Build Script:$scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion completed"
+                                    Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion completed"
                                 }
                                 else 
                                 {
-                                    throw "Dependand PSModule: $dependantModuleName/$dependantModuleVersion not found"
+                                    throw "Dependand module: $dependantModuleName/$dependantModuleVersion not found"
                                 }
                             }
                         }
                     }
                     catch
                     {
-                        Write-Error "Build PSModule:$moduleName/$moduleVersion dependancies failed. Details: $_"
+                        Write-Error "Build Script: $scriptName/$scriptVersion failed. Details: $_"
                     }
 
                     #Build Script
@@ -1703,41 +1754,31 @@ function Build-PSScript
                         #Update Script Dependancies definition
                         if (-not $ScriptDependanciesValid)
                         {
-                            Write-Warning "Build Script:$scriptName/$scriptVersion in progress. RequiredModules specification not valid, updating it..."
-                            $ScriptDependanciesDefinition = New-Object -TypeName system.collections.arraylist
-                            foreach ($DepModule in $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules)
+                            Write-Warning "Build Script: $scriptName/$scriptVersion in progress. RequiredModules specification not valid, updating it..."
+
+                            foreach ($DepModule in $ScriptRequiredModules_All)
                             {
                                 $depModuleName = $DepModule.Name
-                                $depModuleVersion = $DepModule.Version
 
                                 if (($ModuleValidationCache.Value).ContainsKey($depModuleName))
                                 {
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Name
-                                            ModuleVersion = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version
-                                        })
-                                    $null = $ScriptDependanciesDefinition.Add($ModSpec)
+                                    $DepModule.Version = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version
                                 }
                                 elseif ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName))
                                 {
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $PsGetModuleValidationCache.Value[$depModuleName].Name
-                                            ModuleVersion = $PsGetModuleValidationCache.Value[$depModuleName].Version
-                                        })
-                                    $null = $ScriptDependanciesDefinition.Add($ModSpec)
+                                    $DepModule.Version = $PsGetModuleValidationCache.Value[$depModuleName].Version
+                                }
+                            }
+                            if (($ScriptRequiredModules_All | measure-object).Count -gt 0)
+                            {
+                                if ($UseScriptConfigFile.IsPresent)
+                                {
+                                    Update-PSScriptConfig -ScriptPath $AllScriptValidation[$scriptName].ScriptInfo.Path -ScriptConfig $AllScriptValidation[$scriptName].ScriptConfig
                                 }
                                 else
                                 {
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $DepModule.Name
-                                            ModuleVersion = $DepModule.Version
-                                        })
-                                    $null = $ScriptDependanciesDefinition.Add($ModSpec)
+                                    Update-ScriptFileInfo -Path $AllScriptValidation[$scriptName].ScriptInfo.Path -RequiredModules $ScriptRequiredModules -ErrorAction Stop
                                 }
-                            }
-                            if ($ScriptDependanciesDefinition.Count -gt 0)
-                            {
-                                Update-ScriptFileInfo -Path $AllScriptValidation[$scriptName].ScriptInfo.Path -RequiredModules $ScriptDependanciesDefinition -ErrorAction Stop
                             }
                         }
 
@@ -1745,15 +1786,17 @@ function Build-PSScript
                         if ($CheckCommandReferences.IsPresent -and (-not $AllScriptValidation[$scriptName].IsVersionValid))
                         {
                             #if Script is Excluded for CheckCommandReferences
-                            if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName))
+                            if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $scriptName))
                             {
-                                Write-Warning "Build Script:$scriptName/$scriptVersion in progress. Skipping CommandReference validation"
+                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Skipping CommandReference validation"
                             }
-                            #if Module is not Excluded for CheckCommandReferences
+                            #if Script is not Excluded for CheckCommandReferences
                             else
                             {
                                 #Analyze Command references
-                                $CurrentRequiredModules = $PSNativeModules + $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules.Name
+
+                                $CurrentRequiredModules = $PSNativeModules + $ScriptRequiredModules_All.Name
+                                
                                 $priv_AnalyseItemDependancies_Params = @{
                                     ScriptPath            = $AllScriptValidation[$scriptName].ScriptInfo.Path
                                     GlobalCommandAnalysis = $CommandsToModuleMapping
@@ -1786,7 +1829,7 @@ function Build-PSScript
                         #Check Script Integrity
                         if (-not $AllScriptValidation[$scriptName].IsValid)
                         {
-                            Write-Warning "Build Script:$scriptName/$scriptVersion in progress. Not valid, updating version..."
+                            Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Not valid, updating version..."
                             Update-PSScriptVersion -ScriptPath $AllScriptValidation[$scriptName].ScriptInfo.Path -ErrorAction Stop
 						
                             #Refresh ScriptValidation
@@ -1800,7 +1843,19 @@ function Build-PSScript
                         #Export Script to DestinationPath
                         try
                         {
-                            priv_Export-Artifact -Type Script -SourcePath $AllScriptValidation[$scriptName].ScriptInfo.Path -DestinationPath $DestinationPath -Verbose:$false
+                            $privExportArtifact_Params = @{
+                                SourcePath=$AllScriptValidation[$scriptName].ScriptInfo.Path
+                                DestinationPath=$DestinationPath
+                            }
+                            if ($UseScriptConfigFile.IsPresent)
+                            {
+                                $privExportArtifact_Params.Add('Type','ScriptWithConfig')
+                            }
+                            else
+                            {
+                                $privExportArtifact_Params.Add('Type','Script')
+                            }
+                            priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
                         }
                         catch
                         {
@@ -1809,15 +1864,15 @@ function Build-PSScript
                     }
                     catch
                     {
-                        Write-Error "Build Script:$scriptName/$scriptVersion failed. Details: $_" -ErrorAction 'Stop'
+                        Write-Error "Build Script: $scriptName/$scriptVersion failed. Details: $_" -ErrorAction 'Stop'
                     }
                 }
 
-                Write-Verbose "Build Script:$scriptName/$scriptVersion completed"
+                Write-Verbose "Build Script: $scriptName/$scriptVersion completed"
             }
             else
             {
-                $ErrorMsg = "Build Script:$scriptName failed."
+                $ErrorMsg = "Build Script: $scriptName failed."
                 if ($AllScriptValidation[$scriptName].ValidationErrors)
                 {
                     $ErrorDetails = $AllScriptValidation[$scriptName].ValidationErrors -join "$([System.Environment]::NewLine) $([System.Environment]::NewLine)"
