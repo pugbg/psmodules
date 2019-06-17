@@ -362,6 +362,7 @@ function priv_Analyse-ItemDependancies
             CurrentDependancies         = $CurrentDependancies
             PSGetRepository             = $PSGetRepository
             PSBuildDllPath              = [System.AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PSBuildEntities' } | select -ExpandProperty Location
+            PSBuildModulePath = (Get-Module -Name psbuild).Path
         }
         if ($PSBoundParameters.ContainsKey('Proxy'))
         {
@@ -395,6 +396,7 @@ function priv_Analyse-ItemDependancies
             $Job = Start-Job -ScriptBlock {
                 #Wait-Debugger
                 $JobParams = $Using:JobParams
+                Import-Module -FullyQualifiedName $JobParams["PSBuildModulePath"]
                 Add-Type -Path $JobParams['PSBuildDllPath'] -ErrorAction Stop
                 $GlobalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::FromJson($JobParams['GlobalCommandAnalysisAsJson'])
                 $LocalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::New()
@@ -1320,21 +1322,29 @@ function Build-PSScript
     
     Process
     {
-        if (-not $PSBoundParameters.ContainsKey('DependencyDestinationPath'))
+        if ($ResolveDependancies.IsPresent)
         {
-            $DependencyDestinationPath = $DestinationPath
-        }
+            if (-not $PSBoundParameters.ContainsKey('DestinationPath'))
+            {
+                throw "DestinationPath Parameter should be used in combination with ResolveDependancies Parameter"
+            }
 
-        #Add DependencyDestinationPath to Process PSModulePath
-        try
-        {
-            Add-PSModulePathEntry -Path $DependencyDestinationPath -Scope Process -Force
-        }
-        catch
-        {
-            Write-Error "Add DependencyDestinationPath to Process PSModulePath failed. Details: $_" -ErrorAction 'Stop'
-        }
+            if (-not $PSBoundParameters.ContainsKey('DependencyDestinationPath'))
+            {
+                $DependencyDestinationPath = $DestinationPath
+            }
 
+            #Add DependencyDestinationPath to Process PSModulePath
+            try
+            {
+                Add-PSModulePathEntry -Path $DependencyDestinationPath -Scope Process -Force
+            }
+            catch
+            {
+                Write-Error "Add DependencyDestinationPath to Process PSModulePath failed. Details: $_" -ErrorAction 'Stop'
+            }
+        }
+        
         #Assert PSRepositories
         if ($PSBoundParameters.ContainsKey('PSGetRepository'))
         {
@@ -1496,10 +1506,13 @@ function Build-PSScript
                     $ScriptAlreadyBuild = $false
                     $ScriptDependanciesValid = $true
                     $ScriptVersionBuilded = $false
-                    $ScriptBuildDestinationPath = Join-Path -Path $DestinationPath -ChildPath $Script.Name -ErrorAction Stop
-                    if (Test-Path -Path $ScriptBuildDestinationPath)
+                    if ($PSBoundParameters.ContainsKey('DestinationPath'))
                     {
-                        $ScriptAlreadyBuildTest = Test-PSScript -ScriptPath $ScriptBuildDestinationPath -ErrorAction Stop
+                        $ScriptBuildDestinationPath = Join-Path -Path $DestinationPath -ChildPath $Script.Name -ErrorAction Stop
+                        if (Test-Path -Path $ScriptBuildDestinationPath)
+                        {
+                            $ScriptAlreadyBuildTest = Test-PSScript -ScriptPath $ScriptBuildDestinationPath -ErrorAction Stop
+                        }
                     }
                 
                     #Check if Script with the same version is already builded
@@ -1513,7 +1526,10 @@ function Build-PSScript
                     {
                         $depModuleName = $DepModule.Name
                         $depModuleVersion = $DepModule.Version
-                        $DepModuleDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName -ErrorAction Stop
+                        if ($DependencyDestinationPath)
+                        {
+                            $DepModuleDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName -ErrorAction Stop
+                        }
 
                         #Check if DepModule is marked as ExternalModuleDependency
                         if ($AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -contains $depModuleName)
@@ -1604,7 +1620,7 @@ function Build-PSScript
                             }
                         }
                         #Check If Module Dependency is already builded
-                        elseif (Test-Path -Path $DepModuleDestinationPath)
+                        elseif ($DependencyDestinationPath -and (Test-Path -Path $DepModuleDestinationPath))
                         {
                             try
                             {
@@ -1833,25 +1849,28 @@ function Build-PSScript
                         }
 
                         #Export Script to DestinationPath
-                        try
+                        if ($PSBoundParameters.ContainsKey('DestinationPath'))
                         {
-                            $privExportArtifact_Params = @{
-                                SourcePath      = $AllScriptValidation[$scriptName].ScriptInfo.Path
-                                DestinationPath = $DestinationPath
-                            }
-                            if ($UseScriptConfigFile.IsPresent)
+                            try
                             {
-                                $privExportArtifact_Params.Add('Type', 'ScriptWithConfig')
+                                $privExportArtifact_Params = @{
+                                    SourcePath      = $AllScriptValidation[$scriptName].ScriptInfo.Path
+                                    DestinationPath = $DestinationPath
+                                }
+                                if ($UseScriptConfigFile.IsPresent)
+                                {
+                                    $privExportArtifact_Params.Add('Type', 'ScriptWithConfig')
+                                }
+                                else
+                                {
+                                    $privExportArtifact_Params.Add('Type', 'Script')
+                                }
+                                priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
                             }
-                            else
+                            catch
                             {
-                                $privExportArtifact_Params.Add('Type', 'Script')
+                                throw "Unable to copy script to $DestinationPath. Details: $_"
                             }
-                            priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
-                        }
-                        catch
-                        {
-                            throw "Unable to copy script to $DestinationPath. Details: $_"
                         }
                     }
                     catch
@@ -2157,7 +2176,6 @@ function Build-PSSolution
                 }
                 $BuildPSScript_Params = @{
                     SourcePath                          = $Scripts
-                    DestinationPath                     = $ScriptPath.BuildPath
                     ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
                     PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
                     CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
@@ -2165,6 +2183,10 @@ function Build-PSSolution
                     UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
                     PsGetModuleValidationCache          = $PsGetModuleValidationCache
                     UseScriptConfigFile                 = $SolutionConfig.Build.UseScriptConfigFile
+                }
+                if ($ScriptPath.ContainsKey('BuildPath'))
+                {
+                    $BuildPSScript_Params.Add('DestinationPath', $ScriptPath.BuildPath)
                 }
                 if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
                 {

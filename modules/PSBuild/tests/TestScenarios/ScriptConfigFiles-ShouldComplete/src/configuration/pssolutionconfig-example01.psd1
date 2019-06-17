@@ -7,6 +7,9 @@ $SolutionStructure=@{
 		@{
 			SourcePath="$($UserVariables['SolutionRoot'])\src\scriptsWithConfigs"
 			BuildPath="$($UserVariables['SolutionRoot'])\bin\scriptsWithConfigs"
+		},
+		@{
+			SourcePath="$($UserVariables['SolutionRoot'])\src\scriptsInSubfolders\*\scripts\*"
 		}
 	)
 }

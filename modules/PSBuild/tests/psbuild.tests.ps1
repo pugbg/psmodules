@@ -1,6 +1,9 @@
 function SetupContext {
     #Import required modules
     $ModulesPath = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
+    Import-Module -FullyQualifiedName "$ModulesPath\AstExtensions" -force -ErrorAction Stop
+    Import-Module -FullyQualifiedName "$ModulesPath\SystemExtensions" -force -ErrorAction Stop
+    Import-Module -FullyQualifiedName "$ModulesPath\TypeHelper" -force -ErrorAction Stop
     Import-Module -FullyQualifiedName "$ModulesPath\pshelper" -force -ErrorAction Stop
     Import-Module -FullyQualifiedName "$ModulesPath\psbuild" -force -ErrorAction Stop
 }
@@ -20,6 +23,7 @@ function Initialize-TestScenario {
         If (test-path -Path $ExpectedPath)
         {
             [pscustomobject]@{
+                ScenarioName=$Name
                 RootFolder=$ExpectedPath
                 BinFolder="$ExpectedPath\bin"
                 SrcFolder="$ExpectedPath\src"
@@ -69,13 +73,13 @@ describe "Scripts with Config files" {
                 Name='PSGallery'
             }
         }
-        Build-PSScript @BuildPSScript_Params -ErrorAction Stop -Verbose
+        Build-PSScript @BuildPSScript_Params -ErrorAction Stop
         "$($Scenario_ShouldComplete.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
     }
 
     Reset-TestScenario -Scenario $Scenario_ShouldComplete
     it "Build-PSSolution using UseScriptConfigFile=True should succeed if all dependancies are present" {
-        Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldComplete.SrcFolder)\configuration\pssolutionconfig-example01.psd1" -Verbose
+        Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldComplete.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
 
         "$($Scenario_ShouldComplete.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
     }
@@ -95,13 +99,14 @@ describe "Scripts with Config files" {
                     Name='PSGallery'
                 }
             }
-            Build-PSScript @BuildPSScript_Params -ErrorAction Stop -Verbose 
+            Build-PSScript @BuildPSScript_Params -ErrorAction Stop
         } | should -Throw
     }
+
     Reset-TestScenario -Scenario $Scenario_ShouldFail
     it "Build-PSSolution using UseScriptConfigFile=True should fail if missing dependancies" {
         {
-            Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldFail.SrcFolder)\configuration\pssolutionconfig-example01.psd1" -Verbose
+            Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldFail.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
         } | should -throw
     }
 }
