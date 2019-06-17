@@ -30,7 +30,7 @@ function priv_Export-Artifact
 
         #Type
         [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
-        [ValidateSet('Script', 'Module','ScriptWithConfig')]
+        [ValidateSet('Script', 'Module', 'ScriptWithConfig')]
         [string]$Type
     )
 
@@ -704,47 +704,43 @@ function Build-PSModule
     param
     (
         #SourcePath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $true)]
         [System.IO.DirectoryInfo[]]$SourcePath,
 
         #DestinationPath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $true)]
         [System.IO.DirectoryInfo]$DestinationPath,
 
         #ResolveDependancies
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$ResolveDependancies,
 
-        #CheckCommandReferences
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
-        [switch]$CheckCommandReferences,
-
         #CheckCommandReferencesConfiguration
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
-        [psobject]$CheckCommandReferencesConfiguration,
+        [Parameter(Mandatory = $false)]
+        [CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration = ([CheckCommandReferencesConfiguration]::new()),
 
         #CheckDuplicateCommandNames
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$CheckDuplicateCommandNames,
 
         #UpdateModuleReferences
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [switch]$UpdateModuleReferences,
 
         #PSGetRepository
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [hashtable[]]$PSGetRepository,
 
         #ModuleValidation
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [ref]$ModuleValidationCache,
 
         #PsGetModuleValidation
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [ref]$PsGetModuleValidationCache,
 
         #Proxy
-        [Parameter(Mandatory = $false, ParameterSetName = 'NoRemoting_Default')]
+        [Parameter(Mandatory = $false)]
         [uri]$Proxy
     )
     
@@ -1190,14 +1186,14 @@ function Build-PSModule
                         }
 
                         #Check Module Dependancies
-                        if ($CheckCommandReferences.IsPresent -and (-not $ModuleValidationCache.Value[$moduleName].IsVersionValid)) 
+                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $ModuleValidationCache.Value[$moduleName].IsVersionValid)) 
                         {
-                            #if Module is Excluded for CheckCommandReferences
-                            if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName))
+                            #if Module is Excluded in CheckCommandReferencesConfiguration
+                            if ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName)
                             {
                                 Write-Warning "Build PSModule:$moduleName/$moduleVersion in progress. Skipping CommandReference validation"
                             }
-                            #if Module is not Excluded for CheckCommandReferences
+                            #if Module is not Excluded in CheckCommandReferencesConfiguration
                             else
                             {
                                 #Analyze Command references
@@ -1219,7 +1215,7 @@ function Build-PSModule
                                 $CommandNotReferenced = $LocalCommandAnalysis | Where-Object { $_.IsReferenced -eq $false -and $_.CommandType -ne 'Application' }
 
                                 #Check if command is in CheckCommandReferencesConfiguration.ExcludedCommands list
-                                if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration'))
+                                if ($CheckCommandReferencesConfiguration.ExcludedCommands.Count -gt 0)
                                 {
                                     $CommandNotReferenced = $CommandNotReferenced | Where-Object { $CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $_.CommandName }
                                 }
@@ -1282,7 +1278,7 @@ function Build-PSScript
         [System.IO.FileInfo[]]$SourcePath,
 
         #DestinationPath
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         [System.IO.DirectoryInfo]$DestinationPath,
 
         #DependencyDestinationPath
@@ -1297,13 +1293,9 @@ function Build-PSScript
         [Parameter(Mandatory = $false)]
         [switch]$ResolveDependancies,
 
-        #CheckCommandReferences
-        [Parameter(Mandatory = $false)]
-        [switch]$CheckCommandReferences,
-
         #CheckCommandReferencesConfiguration
         [Parameter(Mandatory = $false)]
-        [psobject]$CheckCommandReferencesConfiguration,
+        [CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration = ([CheckCommandReferencesConfiguration]::new()),
 
         #UpdateModuleReferences
         [Parameter(Mandatory = $false)]
@@ -1315,7 +1307,7 @@ function Build-PSScript
 
         #ModuleValidation
         [Parameter(Mandatory = $false)]
-        [ref]$ModuleValidationCache = [ref]@{},
+        [ref]$ModuleValidationCache = [ref]@{ },
 
         #PsGetModuleValidation
         [Parameter(Mandatory = $false)]
@@ -1370,11 +1362,11 @@ function Build-PSScript
                     {
                         Remove-variable -name PSScriptValidation -ErrorAction SilentlyContinue
                         $TestPSScript_Params = @{
-                            ScriptPath=$Script.FullName
+                            ScriptPath = $Script.FullName
                         }
                         if ($UseScriptConfigFile.IsPresent)
                         {
-                            $TestPSScript_Params.Add('UseScriptConfigFile',$true)
+                            $TestPSScript_Params.Add('UseScriptConfigFile', $true)
                         }
                         $PSScriptValidation = Test-PSScript @TestPSScript_Params -ErrorAction Stop
                         
@@ -1783,14 +1775,14 @@ function Build-PSScript
                         }
 
                         #Check Script Dependancies
-                        if ($CheckCommandReferences.IsPresent -and (-not $AllScriptValidation[$scriptName].IsVersionValid))
+                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $AllScriptValidation[$scriptName].IsVersionValid))
                         {
-                            #if Script is Excluded for CheckCommandReferences
-                            if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration') -and ($CheckCommandReferencesConfiguration.ExcludedSources -contains $scriptName))
+                            #if Script is Excluded in CheckCommandReferencesConfiguration
+                            if ($CheckCommandReferencesConfiguration.ExcludedSources -contains $scriptName)
                             {
                                 Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Skipping CommandReference validation"
                             }
-                            #if Script is not Excluded for CheckCommandReferences
+                            #if Script is not Excluded in CheckCommandReferencesConfiguration
                             else
                             {
                                 #Analyze Command references
@@ -1814,7 +1806,7 @@ function Build-PSScript
                                 $CommandNotReferenced = $LocalCommandAnalysis | Where-Object { ($_.IsReferenced -eq $false) -and ($_.CommandType -ne 'Application') }
 
                                 #Check if command is in CheckCommandReferencesConfiguration.ExcludedCommands list
-                                if ($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration'))
+                                if ($CheckCommandReferencesConfiguration.ExcludedCommands.Count -gt 0)
                                 {
                                     $CommandNotReferenced = $CommandNotReferenced | Where-Object { $CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $_.CommandName }
                                 }
@@ -1844,16 +1836,16 @@ function Build-PSScript
                         try
                         {
                             $privExportArtifact_Params = @{
-                                SourcePath=$AllScriptValidation[$scriptName].ScriptInfo.Path
-                                DestinationPath=$DestinationPath
+                                SourcePath      = $AllScriptValidation[$scriptName].ScriptInfo.Path
+                                DestinationPath = $DestinationPath
                             }
                             if ($UseScriptConfigFile.IsPresent)
                             {
-                                $privExportArtifact_Params.Add('Type','ScriptWithConfig')
+                                $privExportArtifact_Params.Add('Type', 'ScriptWithConfig')
                             }
                             else
                             {
-                                $privExportArtifact_Params.Add('Type','Script')
+                                $privExportArtifact_Params.Add('Type', 'Script')
                             }
                             priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
                         }
@@ -2127,7 +2119,6 @@ function Build-PSSolution
                         DestinationPath                     = $ModulePath.BuildPath
                         ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
                         PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
-                        CheckCommandReferences              = $SolutionConfig.Build.CheckCommandReferences.Enabled
                         CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
                         ModuleValidationCache               = $ModuleValidationCache
                         UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
@@ -2169,11 +2160,11 @@ function Build-PSSolution
                     DestinationPath                     = $ScriptPath.BuildPath
                     ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
                     PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
-                    CheckCommandReferences              = $SolutionConfig.Build.CheckCommandReferences.Enabled
                     CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
                     ModuleValidationCache               = $ModuleValidationCache
                     UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
                     PsGetModuleValidationCache          = $PsGetModuleValidationCache
+                    UseScriptConfigFile                 = $SolutionConfig.Build.UseScriptConfigFile
                 }
                 if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
                 {
@@ -2561,5 +2552,16 @@ $PSNativeModules = @(
     'Microsoft.PowerShell.Security'
     'Microsoft.PowerShell.Archive'
 )
+
+#endregion
+
+#region Configuration Classes
+
+class CheckCommandReferencesConfiguration
+{
+    [bool] $Enabled
+    [System.Collections.Generic.List[string]]$ExcludedSources = ([System.Collections.Generic.List[string]]::new())
+    [System.Collections.Generic.List[string]]$ExcludedCommands = ([System.Collections.Generic.List[string]]::new())
+}
 
 #endregion
