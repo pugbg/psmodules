@@ -1,16 +1,19 @@
-describe "Scripts with ScriptInfo" {
-
+function SetupContext {
+    #Import required modules
     $ModulesPath = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
+    Import-Module -FullyQualifiedName "$ModulesPath\pshelper" -force -ErrorAction Stop
+    Import-Module -FullyQualifiedName "$ModulesPath\psbuild" -force -ErrorAction Stop
+}
+
+describe "Scripts" {
+
+    SetupContext
 
     it "Build-PSScript -UseScriptConfigFile should use the scriptconfigfile for RequiredModules" {
-        #Import required modules
-        Import-Module -FullyQualifiedName "$ModulesPath\pshelper" -force -ErrorAction Stop
-        Import-Module -FullyQualifiedName "$ModulesPath\psbuild" -force -ErrorAction Stop
 
         $BuildPSScript_Params = @{
-            SourcePath="$PSScriptRoot\examples\examplescript1.ps1"
-            DestinationPath="$PSScriptRoot\examples\bin"
-            CheckCommandReferences=$true
+            SourcePath="$PSScriptRoot\ExampleSolution01\src\scriptsWithConfigs\examplescript1.ps1"
+            DestinationPath="$PSScriptRoot\ExampleSolution01\bin\scriptsWithConfigs"
             CheckCommandReferencesConfiguration=@{
                 Enabled=$true
             }
@@ -20,5 +23,14 @@ describe "Scripts with ScriptInfo" {
             }
         }
         Build-PSScript @BuildPSScript_Params -ErrorAction Stop -Verbose
+    }
+}
+
+describe "PSBuildConfiguration" {
+
+    SetupContext
+
+    it "Get Configuration using Get-PSSolutionConfiguration" {
+        $PSSolutionConfiguration = Get-PSSolutionConfiguration -Path "$PSScriptRoot\ExampleSolution01\src\configuration\pssolutionconfig-example01.psd1" -ErrorAction Stop
     }
 }
