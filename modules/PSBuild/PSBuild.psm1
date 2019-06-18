@@ -2169,34 +2169,38 @@ function Build-PSSolution
 
             foreach ($ScriptPath in $SolutionConfig.SolutionStructure.ScriptPath)
             {
+                Remove-Variable -Name Scripts -ErrorAction SilentlyContinue
                 $Scripts = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1  -ErrorAction Stop
                 if ($ScriptPath.ContainsKey('Exclude'))
                 {
                     $Scripts = $Scripts | where-object { $ScriptPath.Exclude -notcontains $_.Name }
                 }
-                $BuildPSScript_Params = @{
-                    SourcePath                          = $Scripts
-                    ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
-                    PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
-                    CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
-                    ModuleValidationCache               = $ModuleValidationCache
-                    UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
-                    PsGetModuleValidationCache          = $PsGetModuleValidationCache
-                    UseScriptConfigFile                 = $SolutionConfig.Build.UseScriptConfigFile
-                }
-                if ($ScriptPath.ContainsKey('BuildPath'))
+                if ($scripts)
                 {
-                    $BuildPSScript_Params.Add('DestinationPath', $ScriptPath.BuildPath)
+                    $BuildPSScript_Params = @{
+                        SourcePath                          = $Scripts
+                        ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
+                        PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
+                        CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
+                        ModuleValidationCache               = $ModuleValidationCache
+                        UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
+                        PsGetModuleValidationCache          = $PsGetModuleValidationCache
+                        UseScriptConfigFile                 = $SolutionConfig.Build.UseScriptConfigFile
+                    }
+                    if ($ScriptPath.ContainsKey('BuildPath'))
+                    {
+                        $BuildPSScript_Params.Add('DestinationPath', $ScriptPath.BuildPath)
+                    }
+                    if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
+                    {
+                        $BuildPSScript_Params.Add('DependencyDestinationPath', $ScriptPath.DependencyDestinationPath)
+                    }
+                    if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
+                    {
+                        $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
+                    }
+                    Build-PSScript @BuildPSScript_Params -ErrorAction Stop
                 }
-                if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
-                {
-                    $BuildPSScript_Params.Add('DependencyDestinationPath', $ScriptPath.DependencyDestinationPath)
-                }
-                if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
-                {
-                    $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
-                }
-                Build-PSScript @BuildPSScript_Params -ErrorAction Stop
             }
       
             Write-Verbose "Build Solution Scripts completed"

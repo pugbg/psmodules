@@ -53,6 +53,16 @@ function Reset-TestScenario {
     }
 }
 
+describe "Solutions" {
+
+    SetupContext
+    $Scenario_ShouldComplete = Initialize-TestScenario -Name EmptySolution-ShouldComplete
+    Reset-TestScenario -Scenario $Scenario_ShouldComplete
+    it "Build-PSSolution should succeed if there are no scripts to be build" {
+        Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldComplete.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
+    }
+}
+
 describe "Scripts with Config files" {
 
     SetupContext
