@@ -8,7 +8,7 @@
     "version": {
         "Major": 0,
         "Minor": 0,
-        "Patch": 3
+        "Patch": 8
     },
     "inputs": [
         {
@@ -17,6 +17,13 @@
             "label": "Azure Resource Manager Subscription",
             "required": true,
             "helpMarkDown": "Azure Resource Manager Subscription"
+        },
+        {
+            "name": "Param1",
+            "type": "string",
+            "label": "Param1 Label",
+            "required": true,
+            "helpMarkDown": "Param1 MD"
         }
     ],
     "execution": {

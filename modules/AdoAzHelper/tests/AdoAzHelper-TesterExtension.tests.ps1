@@ -12,19 +12,20 @@ describe 'AdoAzHelper-TesterExtension' {
             {
                 New-Item -Path $ExtesionBinFolderPath -ItemType Directory -ErrorAction Stop
             }
+            Set-Location $ExtesionBinFolderPath
 
             #Copy ADO-Extenson to ExtesionBinFolderPath 
             $ExtensionPath = Join-Path -Path $PSScriptRoot -ChildPath AdoAzHelper-TesterExtension
             Copy-Item -Path "$ExtensionPath\*" -Destination $ExtesionBinFolderPath -Recurse -ErrorAction Stop
 
             #Install Dependancies
-            Set-Location $ExtesionBinFolderPath
+            
             npm --% install vss-web-extension-sdk --save --loglevel=error
             $PackageDetailsAsJson = tfx --% extension create --json
             $PackageDetails = $PackageDetailsAsJson | ConvertFrom-Json
 
             #Publish Extension
-            Start-NewProcess -FilePath 'C:\ProgramData\NodeJS\tfx.cmd' -Arguments "extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ReturnResult
+            Start-NewProcess -FilePath 'C:\programdata\npm\tfx.cmd' -Arguments "extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ReturnResult
         }
         finally
         {
