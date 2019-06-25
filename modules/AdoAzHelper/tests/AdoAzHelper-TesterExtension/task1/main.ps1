@@ -19,7 +19,7 @@ process
     Get-Variable
 
     'PS Vault data'
-    $VstsTaskSdkModule = Get-module -Name $VstsTaskSdk
+    $VstsTaskSdkModule = Get-module -Name VstsTaskSdk
     if ($VstsTaskSdkModule)
     {
         & $VstsTaskSdkModule {$script:vault}
