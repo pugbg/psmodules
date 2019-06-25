@@ -1,0 +1,27 @@
+{
+    "id": "0193e4f3-7c1c-4900-877a-1914f4dff8cb",
+    "name": "AdoAzHelper-TesterExtension-Test",
+    "friendlyName": "AdoAzHelper-TesterExtension-Test",
+    "description": "AdoAzHelper-TesterExtension-Test",
+    "category": "Azure Pipelines",
+    "author": "psmodules-tester",
+    "version": {
+        "Major": 0,
+        "Minor": 0,
+        "Patch": 3
+    },
+    "inputs": [
+        {
+            "name": "ServiceConnection",
+            "type": "connectedService:AzureRM",
+            "label": "Azure Resource Manager Subscription",
+            "required": true,
+            "helpMarkDown": "Azure Resource Manager Subscription"
+        }
+    ],
+    "execution": {
+        "PowerShell3": {
+            "target": "main.ps1"
+        }
+    }
+}
