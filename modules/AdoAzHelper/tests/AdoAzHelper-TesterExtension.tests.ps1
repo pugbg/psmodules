@@ -25,7 +25,7 @@ describe 'AdoAzHelper-TesterExtension' {
             $PackageDetails = $PackageDetailsAsJson | ConvertFrom-Json
 
             #Publish Extension
-            Start-NewProcess -FilePath 'C:\programdata\npm\tfx.cmd' -Arguments "extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ReturnResult
+            Start-NewProcess -FilePath 'C:\programdata\nodejs\tfx.cmd' -Arguments "extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ReturnResult
         }
         finally
         {

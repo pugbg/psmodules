@@ -2112,6 +2112,33 @@ function Build-PSSolution
             Write-Error "Configure PS Environment failed. Details: $_" -ErrorAction 'Stop'
         }
 
+        #Run PreBuild Actions
+        try
+        {
+            Write-Verbose "Run PreBuild Actions started"
+			
+            Foreach ($Action in $SolutionConfig.BuildActions.PreBuild)
+            {
+                try
+                {
+                    Write-Verbose "Run PreBuild Actions in progress. Action: $($Action['Name']) starting."
+                    $Null = Invoke-Command -ScriptBlock $Action['ScriptBlock'] -ErrorAction Stop -NoNewScope
+                    Write-Verbose "Run PreBuild Actions in progress. Action: $($Action['Name']) completed."
+                }
+                catch
+                {
+                    Write-Warning "Run PreBuild Actions in progress. Action: $($Action['Name']) failed."
+                    throw $_
+                }
+            }
+      
+            Write-Verbose "Run PreBuild Actions completed"
+        }
+        catch
+        {
+            Write-Error "Run PreBuild Actions failed. Details: $_" -ErrorAction 'Stop'
+        }
+
         #Build Solution Modules
         try
         {

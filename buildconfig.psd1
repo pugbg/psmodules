@@ -44,6 +44,14 @@ $Packaging=@{
 }
 $BuildActions=@{
 	#Example: @(@{Name='Step1';ScriptBlock={Start-Something}})
+	PreBuild=@(
+		@{
+			Name='Insert VstsTaskSdk requirements'
+			ScriptBlock={
+				$env:system_culture = 'en'
+			}
+		}
+	)
 	PostBuild=@(
 	)
 }

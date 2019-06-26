@@ -1,13 +1,7 @@
 [CmdletBinding()]
 param
 (
-    #ServiceConnection
-    [Parameter(Mandatory=$false)]
-    $ServiceConnection,
 
-        #Param1
-        [Parameter(Mandatory=$false)]
-        $Param1
 )
 
 process
@@ -25,9 +19,20 @@ process
         & $VstsTaskSdkModule {$script:vault}
     }
 
-    'PS Vault data2'
-    $script:vault
-
     'Environment Variables for Process:'
-    [System.Environment]::GetEnvironmentVariables('Process') | convertto-json   
+    [System.Environment]::GetEnvironmentVariables('Process') | convertto-json
+
+    'Input: '
+    $SCParam = Get-VstsInput -Name ServiceConnection
+    $SCParam | convertto-json
+
+    'Connection: '
+    $SC = Get-VstsEndpoint -Name $SCParam 
+    $SC | convertto-json
+    
+    'Connection AuthType'
+    $SC.Auth.parameters.authenticationType.ToCharArray()
+
+    'Connection RAW: '
+    
 }
