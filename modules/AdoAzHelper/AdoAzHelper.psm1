@@ -49,7 +49,7 @@ function Connnect-AahServiceConnection
                                 Subscription=$ServiceConnection.Data.subscriptionId
                                 Credential=[System.Management.Automation.PSCredential]::new($ServiceConnection.Auth.Parameters.ServicePrincipalId,(ConvertTo-SecureString $ServiceConnection.Auth.Parameters.ServicePrincipalKey -AsPlainText -Force))
                             }
-                            $profile = Connect-AzAccount $ConnectAzAccount_Params -ErrorAction Stop
+                            $profile = Connect-AzAccount @ConnectAzAccount_Params -ErrorAction Stop
                             if ($PassThru.IsPresent)
                             {
                                 $profile
