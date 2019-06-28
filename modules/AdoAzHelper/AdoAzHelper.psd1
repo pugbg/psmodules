@@ -12,7 +12,7 @@
 RootModule = 'AdoAzHelper.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.1.3'
+ModuleVersion = '0.0.1.4'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -94,7 +94,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"BCF9B3CCA65A87D5C07CBAA5CB67122A25F0A859FF90C386DFE58777E51D40DD","HashAlgorithm":"SHA256","Version":"0.0.1.3"}'
+    VersionControl = '{"Hash":"67D1264855DB85FFC56F155D0184011B39682ACB9B3D3444ABDBC30720C90947","HashAlgorithm":"SHA256","Version":"0.0.1.4"}'
 
     PSData = @{
 

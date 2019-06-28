@@ -41,7 +41,7 @@ function Connect-AahServiceConnection
                     {
                         'spnKey' {
 
-                            Write-Information "Connect using ServiceConnection in progress. Connecting to:'' using 'ServicePrincipal with spnKey'"
+                            Write-Information "Connect using ServiceConnection in progress. Connecting to subscription:'$($ServiceConnection.Data.subscriptionName)' using 'ServicePrincipal with spnKey'"
                             $ConnectAzAccount_Params = @{
                                 ContextName="aah_$ServiceConnectionId"
                                 ServicePrincipal=$true
