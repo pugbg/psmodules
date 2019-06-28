@@ -1,4 +1,4 @@
-function Connnect-AahServiceConnection
+function Connect-AahServiceConnection
 {
     [CmdletBinding()]
     param
