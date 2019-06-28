@@ -18,6 +18,8 @@ describe 'AdoAzHelper-TesterExtension' {
             $ExtensionPath = Join-Path -Path $PSScriptRoot -ChildPath AdoAzHelper-TesterExtension
             Copy-Item -Path "$ExtensionPath\*" -Destination $ExtesionBinFolderPath -Recurse -ErrorAction Stop
 
+            #Inject Dependant module in ps_modules
+            Save-module -Name AdoAzHelper -Path "$ExtesionBinFolderPath\task1\ps_modules"
 
             #Install Dependancies
             

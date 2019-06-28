@@ -49,6 +49,7 @@ function Connect-AahServiceConnection
                                 Subscription=$ServiceConnection.Data.subscriptionId
                                 Credential=[System.Management.Automation.PSCredential]::new($ServiceConnection.Auth.Parameters.ServicePrincipalId,(ConvertTo-SecureString $ServiceConnection.Auth.Parameters.ServicePrincipalKey -AsPlainText -Force))
                                 SkipContextPopulation=$true
+                                Scope='Process'
                             }
                             $profile = Connect-AzAccount @ConnectAzAccount_Params -ErrorAction Stop
                             if ($PassThru.IsPresent)
@@ -136,14 +137,16 @@ function Disconnect-AahServiceConnection
                 $ServiceConnectionsInScope | foreach {
                     try
                     {
-                        Write-Warning "Disconnect ServiceConnections in progress. Disconnecting: $_"
-                        Disconnect-AzAccount -ContextName $_ -ErrorAction Stop
+                        Write-Information "Disconnect ServiceConnections in progress. Disconnecting: $_"
+                        $null = Disconnect-AzAccount -ContextName $_ -ErrorAction Stop
                     }
                     catch
                     {
                         Write-Warning "Disconnect ServiceConnections in progress. Failed to disconnect: $_"
                     }
                 }
+
+                Write-Information "Disconnect ServiceConnections completed"
             }
             else
             {
