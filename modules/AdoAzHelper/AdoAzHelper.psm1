@@ -48,11 +48,12 @@ function Connect-AahServiceConnection
                                 Tenant=$ServiceConnection.Auth.Parameters.TenantId
                                 Subscription=$ServiceConnection.Data.subscriptionId
                                 Credential=[System.Management.Automation.PSCredential]::new($ServiceConnection.Auth.Parameters.ServicePrincipalId,(ConvertTo-SecureString $ServiceConnection.Auth.Parameters.ServicePrincipalKey -AsPlainText -Force))
+                                SkipContextPopulation=$true
                             }
                             $profile = Connect-AzAccount @ConnectAzAccount_Params -ErrorAction Stop
                             if ($PassThru.IsPresent)
                             {
-                                $profile
+                                $profile.context
                             }
                         }
 

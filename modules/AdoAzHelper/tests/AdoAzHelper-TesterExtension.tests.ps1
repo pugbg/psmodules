@@ -18,6 +18,7 @@ describe 'AdoAzHelper-TesterExtension' {
             $ExtensionPath = Join-Path -Path $PSScriptRoot -ChildPath AdoAzHelper-TesterExtension
             Copy-Item -Path "$ExtensionPath\*" -Destination $ExtesionBinFolderPath -Recurse -ErrorAction Stop
 
+
             #Install Dependancies
             
             npm --% install vss-web-extension-sdk --save --loglevel=error

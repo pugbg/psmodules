@@ -35,4 +35,12 @@ process
 
     'Connection RAW: '
     
+    #Connecto to ServiceConnection
+    'Connecting to ServiceConnection'
+    import-module -FullyQualifiedName "$PSScriptRoot\ps_modules\Az.Accounts"
+    import-module -FullyQualifiedName "$PSScriptRoot\ps_modules\AdoAzHelper"
+    $ServiceConnectionId = Get-Vstsinput -Name ServiceConnection -Require
+    $AzConnectResult = Connect-AahServiceConnection -ServiceConnectionId $ServiceConnectionId -PassThru -InformationAction Continue
+
+    $AzConnectResult | convertto-json
 }
