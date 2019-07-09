@@ -1,27 +1,26 @@
 $UserVariables = @{
-	PSGalleryApiKey=Get-Credential -UserName 'gogbg psgallery repo' -Message 'Enter NugetApiKey'
+	SolutionRoot = (Split-Path $env:ScriptRoot -Parent -ErrorAction Stop | Split-path -Parent -ErrorAction Stop)
 }
 $SolutionStructure=@{
 	#Example: @(@{SourcePath='c:\modules'},@{BuildPath='c:\modules bin'})
-	ModulesPath=@(
+	ScriptPath=@(
 		@{
-			SourcePath="$env:ScriptRoot\modules"
-			BuildPath="$env:ScriptRoot\bin\modules"
+			SourcePath="$($UserVariables['SolutionRoot'])\src\scripts\*\*"
 		}
 	)
-	ScriptPath=@()
 }
 $Build=@{
 	AutoloadDependancies=$true
 	AutoloadDependanciesScope=@('Process')
-	AutoResolveDependantModules=$true
+	AutoResolveDependantModules=$false
 	CheckCommandReferences=@{
 		Enabled=$true
 		ExcludedSources=@()
 		ExcludedCommands=@()
 	}
-	CheckDuplicateCommandNames=$true
+	CheckDuplicateCommandNames=$false
 	UpdateModuleReferences=$false
+	UseScriptConfigFile=$false
 }
 $Packaging=@{
 	#Example: @{Name='';SourceLocation='';PublishLocation='';Credential=''}
@@ -32,10 +31,6 @@ $Packaging=@{
 		}
 	)
 	PSGetPublishRepositories=@(
-		@{
-			Name='PSGallery'
-			NuGetApiKey=$UserVariables['PSGalleryApiKey'].GetNetworkCredential().password
-		}
 	)
 	#List of Modules that should be published to PSGet Repository
 	PublishAllModules=$false
@@ -44,14 +39,6 @@ $Packaging=@{
 }
 $BuildActions=@{
 	#Example: @(@{Name='Step1';ScriptBlock={Start-Something}})
-	PreBuild=@(
-		@{
-			Name='Insert VstsTaskSdk requirements'
-			ScriptBlock={
-				$env:system_culture = 'en'
-			}
-		}
-	)
 	PostBuild=@(
 	)
 }

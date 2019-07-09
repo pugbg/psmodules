@@ -1368,7 +1368,8 @@ function Build-PSScript
                 foreach ($Script in $SourcePath)
                 {
                     $scriptName = $Script.BaseName
-                    if (-not $AllScriptValidation.ContainsKey($scriptName))
+                    $scriptFilePath = $script.FullName
+                    if (-not $AllScriptValidation.ContainsKey($scriptFilePath))
                     {
                         Remove-variable -name PSScriptValidation -ErrorAction SilentlyContinue
                         $TestPSScript_Params = @{
@@ -1380,7 +1381,7 @@ function Build-PSScript
                         }
                         $PSScriptValidation = Test-PSScript @TestPSScript_Params -ErrorAction Stop
                         
-                        $null = $AllScriptValidation.Add($scriptName, $PSScriptValidation)
+                        $null = $AllScriptValidation.Add($scriptFilePath, $PSScriptValidation)
                     }
                 }
             }
@@ -1479,24 +1480,25 @@ function Build-PSScript
         foreach ($Script in $SourcePath)
         {
             $scriptName = $Script.BaseName
+            $scriptFilePath = $script.FullName
 
             #Get ScriptRequiredModules_All and ScriptRequiredModules_NotExternal
             Remove-Variable -Name ScriptRequiredModules -ErrorAction SilentlyContinue
             Remove-Variable -Name ScriptRequiredModules_NotExternal -ErrorAction SilentlyContinue
             if ($UseScriptConfigFile.IsPresent)
             {
-                $ScriptRequiredModules_All = $AllScriptValidation[$scriptName].ScriptConfig.RequiredModules
-                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptName].ScriptConfig.RequiredModules | Where-Object { $AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
+                $ScriptRequiredModules_All = $AllScriptValidation[$scriptFilePath].ScriptConfig.RequiredModules
+                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptFilePath].ScriptConfig.RequiredModules | Where-Object { $AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
             }
             else
             {
-                $ScriptRequiredModules_All = $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules
-                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptName].ScriptInfo.RequiredModules | Where-Object { $AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
+                $ScriptRequiredModules_All = $AllScriptValidation[$scriptFilePath].ScriptInfo.RequiredModules
+                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptFilePath].ScriptInfo.RequiredModules | Where-Object { $AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
             }
 
-            if ($AllScriptValidation[$scriptName].ScriptInfo)
+            if ($AllScriptValidation[$scriptFilePath].ScriptInfo)
             {
-                $scriptVersion = $AllScriptValidation[$scriptName].ScriptInfo.Version
+                $scriptVersion = $AllScriptValidation[$scriptFilePath].ScriptInfo.Version
 
                 Write-Verbose "Build Script: $scriptName/$scriptVersion started"
 
@@ -1516,7 +1518,7 @@ function Build-PSScript
                     }
                 
                     #Check if Script with the same version is already builded
-                    if ($AllScriptValidation[$scriptName].IsValid -and $ScriptAlreadyBuildTest.IsValid -and ($AllScriptValidation[$scriptName].ScriptInfo.Version -eq $ScriptAlreadyBuildTest.ScriptInfo.Version))
+                    if ($AllScriptValidation[$scriptFilePath].IsValid -and $ScriptAlreadyBuildTest.IsValid -and ($AllScriptValidation[$scriptFilePath].ScriptInfo.Version -eq $ScriptAlreadyBuildTest.ScriptInfo.Version))
                     {
                         $ScriptVersionBuilded = $true
                     }
@@ -1532,7 +1534,7 @@ function Build-PSScript
                         }
 
                         #Check if DepModule is marked as ExternalModuleDependency
-                        if ($AllScriptValidation[$scriptName].ScriptInfo.ExternalModuleDependencies -contains $depModuleName)
+                        if ($AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -contains $depModuleName)
                         {
                             #Skip this DepModule from validation, as it is marked as external
                         }
@@ -1781,17 +1783,17 @@ function Build-PSScript
                             {
                                 if ($UseScriptConfigFile.IsPresent)
                                 {
-                                    Update-PSScriptConfig -ScriptPath $AllScriptValidation[$scriptName].ScriptInfo.Path -ScriptConfig $AllScriptValidation[$scriptName].ScriptConfig
+                                    Update-PSScriptConfig -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ScriptConfig $AllScriptValidation[$scriptFilePath].ScriptConfig
                                 }
                                 else
                                 {
-                                    Update-ScriptFileInfo -Path $AllScriptValidation[$scriptName].ScriptInfo.Path -RequiredModules $ScriptRequiredModules -ErrorAction Stop
+                                    Update-ScriptFileInfo -Path $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -RequiredModules $ScriptRequiredModules -ErrorAction Stop
                                 }
                             }
                         }
 
                         #Check Script Dependancies
-                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $AllScriptValidation[$scriptName].IsVersionValid))
+                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $AllScriptValidation[$scriptFilePath].IsVersionValid))
                         {
                             #if Script is Excluded in CheckCommandReferencesConfiguration
                             if ($CheckCommandReferencesConfiguration.ExcludedSources -contains $scriptName)
@@ -1806,7 +1808,7 @@ function Build-PSScript
                                 $CurrentRequiredModules = $PSNativeModules + $ScriptRequiredModules_All.Name
                                 
                                 $priv_AnalyseItemDependancies_Params = @{
-                                    ScriptPath            = $AllScriptValidation[$scriptName].ScriptInfo.Path
+                                    ScriptPath            = $AllScriptValidation[$scriptFilePath].ScriptInfo.Path
                                     GlobalCommandAnalysis = $CommandsToModuleMapping
                                     CurrentDependancies   = $CurrentRequiredModules
                                 }
@@ -1835,15 +1837,15 @@ function Build-PSScript
                         }
 
                         #Check Script Integrity
-                        if (-not $AllScriptValidation[$scriptName].IsValid)
+                        if (-not $AllScriptValidation[$scriptFilePath].IsValid)
                         {
                             Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Not valid, updating version..."
-                            Update-PSScriptVersion -ScriptPath $AllScriptValidation[$scriptName].ScriptInfo.Path -ErrorAction Stop
+                            Update-PSScriptVersion -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ErrorAction Stop
 						
                             #Refresh ScriptValidation
-                            $AllScriptValidation[$scriptName] = Test-PSScript -ScriptPath $AllScriptValidation[$scriptName].ScriptInfo.Path -ErrorAction Stop
+                            $AllScriptValidation[$scriptFilePath] = Test-PSScript -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ErrorAction Stop
                         }
-                        elseif (-not $AllScriptValidation[$scriptName].IsReadyForPackaging)
+                        elseif (-not $AllScriptValidation[$scriptFilePath].IsReadyForPackaging)
                         {
                             throw "Not ready for packaging. Missing either Author or Description."
                         }
@@ -1854,7 +1856,7 @@ function Build-PSScript
                             try
                             {
                                 $privExportArtifact_Params = @{
-                                    SourcePath      = $AllScriptValidation[$scriptName].ScriptInfo.Path
+                                    SourcePath      = $AllScriptValidation[$scriptFilePath].ScriptInfo.Path
                                     DestinationPath = $DestinationPath
                                 }
                                 if ($UseScriptConfigFile.IsPresent)
@@ -1884,9 +1886,9 @@ function Build-PSScript
             else
             {
                 $ErrorMsg = "Build Script: $scriptName failed."
-                if ($AllScriptValidation[$scriptName].ValidationErrors)
+                if ($AllScriptValidation[$scriptFilePath].ValidationErrors)
                 {
-                    $ErrorDetails = $AllScriptValidation[$scriptName].ValidationErrors -join "$([System.Environment]::NewLine) $([System.Environment]::NewLine)"
+                    $ErrorDetails = $AllScriptValidation[$scriptFilePath].ValidationErrors -join "$([System.Environment]::NewLine) $([System.Environment]::NewLine)"
                     $ErrorMsg += @"
  Script Parse Errors:
 $ErrorDetails

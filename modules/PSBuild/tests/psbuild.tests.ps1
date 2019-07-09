@@ -1,4 +1,5 @@
-function SetupContext {
+function SetupContext
+{
     #Import required modules
     $ModulesPath = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
     Import-Module -FullyQualifiedName "$ModulesPath\AstExtensions" -force -ErrorAction Stop
@@ -8,115 +9,166 @@ function SetupContext {
     Import-Module -FullyQualifiedName "$ModulesPath\psbuild" -force -ErrorAction Stop
 }
 
-function Initialize-TestScenario {
+function Initialize-TestScenario
+{
 
     [Cmdletbinding()]
     param
     (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [String]$Name
     )
 
     process
     {
         $ExpectedPath = Join-Path -Path $PSScriptRoot -ChildPath "TestScenarios\$Name"
-        If (test-path -Path $ExpectedPath)
-        {
-            [pscustomobject]@{
-                ScenarioName=$Name
-                RootFolder=$ExpectedPath
-                BinFolder="$ExpectedPath\bin"
-                SrcFolder="$ExpectedPath\src"
-            }
-        }
-        else
+        If (-not (test-path -Path $ExpectedPath))
         {
             throw "Scenario: $Name not found"
         }
-    }
-}
 
-function Reset-TestScenario {
-    [Cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory=$true)]
-        [psobject]$Scenario
-    )
-
-    process
-    {
-        if (Test-Path -Path $Scenario.BinFolder)
+        $TestScenarioFolder = join-path -Path $TestDrive -ChildPath 'TestScenario' -ErrorAction Stop
+        if (-not (Test-Path -Path TestScenarioFolder))
         {
-            Remove-Item -Path $Scenario.BinFolder -Recurse -Force -ErrorAction Stop
+            $null = New-Item -Path $TestScenarioFolder -ItemType Directory -ErrorAction Stop
         }
+
+        Copy-Item -Path "$ExpectedPath\*" -Destination $TestScenarioFolder -Recurse -ErrorAction Stop
+        $result = [pscustomobject]@{
+            ScenarioName      = $Name
+            RootFolder        = $TestScenarioFolder
+            BinFolder         = "$TestScenarioFolder\bin"
+            SrcFolder         = "$TestScenarioFolder\src"
+            BuildConfigFolder = "$TestScenarioFolder\src\configuration"
+        }
+
+
+        #return result
+        $result
     }
 }
 
-describe "Solutions" {
+describe "Build-PSSolution" {
 
     SetupContext
-    $Scenario_ShouldComplete = Initialize-TestScenario -Name EmptySolution-ShouldComplete
-    Reset-TestScenario -Scenario $Scenario_ShouldComplete
-    it "Build-PSSolution should succeed if there are no scripts to be build" {
-        Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldComplete.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
+
+    context "when 'ScriptPath.SourcePath' does not contains scripts" {
+        $TestScenario = Initialize-TestScenario -Name EmptySolution-ShouldComplete
+        it "build PSSolutions" {
+            Build-PSSolution -SolutionConfigPath "$($TestScenario.BuildConfigFolder)\pssolutionconfig.psd1" -ErrorAction Stop
+        }
     }
+
+    context "when 'ScriptPath.SourcePath' contains multiple scripts with the same name, and 'ScriptPath.BuildPath' is absent" {
+        $TestScenario = Initialize-TestScenario -Name ScriptsWithSameName-ShouldComplete
+        it "build PSSolution" {
+            Build-PSSolution -SolutionConfigPath "$($TestScenario.BuildConfigFolder)\pssolutionconfig.psd1" -ErrorAction Stop
+        }
+
+        it "scriptsFolder1\examplescript1.ps1 version should be incresed" {
+            $r = Test-PSScript -ScriptPath "$($TestScenario.SrcFolder)\scripts\scriptsFolder1\examplescript1.ps1"
+            $r.ScriptInfo.Version | should -Be '2.0.0.13'
+        }
+
+        it "scriptsFolder2\examplescript1.ps1 version should be incresed" {
+            $r = Test-PSScript -ScriptPath "$($TestScenario.SrcFolder)\scripts\scriptsFolder2\examplescript1.ps1"
+            $r.ScriptInfo.Version | should -Be '1.0.0.13'
+        }
+    }
+
+    context "when 'UseScriptConfigFile'=True and dependancies are present in scripts config.json" {
+        $TestScenario = Initialize-TestScenario -Name ScriptConfigFiles-ShouldComplete
+
+        it 'build PSSolution' {
+            Build-PSSolution -SolutionConfigPath "$($TestScenario.BuildConfigFolder)\pssolutionconfig.psd1"
+        }
+
+        it "script should be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.ps1" | should -Exist
+        }
+
+        it "script config should be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
+        }
+    }
+
+    context "when 'UseScriptConfigFile'=True and dependancies are absent in script config.json" {
+        $TestScenario = Initialize-TestScenario -Name ScriptConfigFiles-ShouldFail
+
+        it 'build PSSolution' {
+            { Build-PSSolution -SolutionConfigPath "$($TestScenario.BuildConfigFolder)\pssolutionconfig.psd1" } | should -Throw
+        }
+
+        it "script should not be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.ps1" | should -not -Exist
+        }
+
+        it "script config not should be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -not -Exist
+        }
+    }
+
 }
 
-describe "Scripts with Config files" {
+describe "Build-PSScript" {
 
     SetupContext
-    $Scenario_ShouldComplete = Initialize-TestScenario -Name ScriptConfigFiles-ShouldComplete
-    $Scenario_ShouldFail = Initialize-TestScenario -Name ScriptConfigFiles-ShouldFail
 
-    Reset-TestScenario -Scenario $Scenario_ShouldComplete
-    it "Build-PSScript -UseScriptConfigFile should succeed if all dependancies are present" {
+    context "-UseScriptConfigFile when dependancies are present" {
+        $TestScenario = Initialize-TestScenario -Name ScriptConfigFiles-ShouldComplete
 
-        $BuildPSScript_Params = @{
-            SourcePath="$($Scenario_ShouldComplete.SrcFolder)\scriptsWithConfigs\examplescript1.ps1"
-            DestinationPath="$($Scenario_ShouldComplete.BinFolder)\scriptsWithConfigs"
-            CheckCommandReferencesConfiguration=@{
-                Enabled=$true
-            }
-            UseScriptConfigFile=$true
-            PSGetRepository=@{
-                Name='PSGallery'
-            }
-        }
-        Build-PSScript @BuildPSScript_Params -ErrorAction Stop
-        "$($Scenario_ShouldComplete.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
-    }
-
-    Reset-TestScenario -Scenario $Scenario_ShouldComplete
-    it "Build-PSSolution using UseScriptConfigFile=True should succeed if all dependancies are present" {
-        Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldComplete.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
-
-        "$($Scenario_ShouldComplete.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
-    }
-
-    Reset-TestScenario -Scenario $Scenario_ShouldFail
-    it "Build-PSScript -UseScriptConfigFile should fail if missing dependancies" {
-
-        { 
+        it "build script" {
             $BuildPSScript_Params = @{
-                SourcePath="$($Scenario_ShouldFail.SrcFolder)\scriptsWithConfigs\examplescript2.ps1"
-                DestinationPath="$($Scenario_ShouldFail.BinFolder)\scriptsWithConfigs"
-                CheckCommandReferencesConfiguration=@{
-                    Enabled=$true
+                SourcePath                          = "$($TestScenario.SrcFolder)\scriptsWithConfigs\examplescript1.ps1"
+                DestinationPath                     = "$($TestScenario.BinFolder)\scriptsWithConfigs"
+                CheckCommandReferencesConfiguration = @{
+                    Enabled = $true
                 }
-                UseScriptConfigFile=$true
-                PSGetRepository=@{
-                    Name='PSGallery'
+                UseScriptConfigFile                 = $true
+                PSGetRepository                     = @{
+                    Name = 'PSGallery'
                 }
             }
             Build-PSScript @BuildPSScript_Params -ErrorAction Stop
-        } | should -Throw
+        }
+
+        it "script should be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.ps1" | should -Exist
+        }
+
+        it "script config should be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Exist
+        }
+
     }
 
-    Reset-TestScenario -Scenario $Scenario_ShouldFail
-    it "Build-PSSolution using UseScriptConfigFile=True should fail if missing dependancies" {
-        {
-            Build-PSSolution -SolutionConfigPath "$($Scenario_ShouldFail.SrcFolder)\configuration\pssolutionconfig-example01.psd1"
-        } | should -throw
+    context "-UseScriptConfigFile when dependancies are absent" {
+        $TestScenario = Initialize-TestScenario -Name ScriptConfigFiles-ShouldFail
+
+        it "build script" {
+            { 
+                $BuildPSScript_Params = @{
+                    SourcePath                          = "$($TestScenario.SrcFolder)\scriptsWithConfigs\examplescript1.ps1"
+                    DestinationPath                     = "$($TestScenario.BinFolder)\scriptsWithConfigs"
+                    CheckCommandReferencesConfiguration = @{
+                        Enabled = $true
+                    }
+                    UseScriptConfigFile                 = $true
+                    PSGetRepository                     = @{
+                        Name = 'PSGallery'
+                    }
+                }
+                Build-PSScript @BuildPSScript_Params -ErrorAction Stop
+            } | should -Throw
+        }
+
+        it "script should not be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.ps1" | should -Not -Exist
+        }
+
+        it "script config should not be copied to bin folder" {
+            "$($TestScenario.BinFolder)\scriptsWithConfigs\examplescript1.config.json" | should -Not -Exist
+        }
     }
+
 }

@@ -1,6 +1,6 @@
 <#PSScriptInfo
 
-.VERSION 1.0.0.14
+.VERSION 2.0.0.12
 
 .GUID 3e268f95-0479-4baf-b95e-44152c6970e5
 
@@ -26,14 +26,9 @@
 
 .RELEASENOTES
 
-
-.PRIVATEDATA {"VersionControl":{"Hash":"82A33FEF48DE690699CD0F8EFDE3A076CACD9893FC0776475D3D2A3ADAD30136","HashAlgorithm":"SHA256","Version":"1.0.0.14"}}
-
 #> 
 
-
-
-
+#Requires -Module @{ ModuleName = 'PSHelper'; ModuleVersion = '1.0.0.58' }
 
 <#
 .DESCRIPTION
