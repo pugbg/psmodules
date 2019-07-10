@@ -159,3 +159,33 @@ function Disconnect-AahServiceConnection
         }
     }
 }
+
+function Set-AahPipelineVariable
+{
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true)]
+        [AahPipelineVariable[]]$InputObject
+    )
+
+    process
+    {
+        foreach ($object in $InputObject) 
+        {
+            "##vso[task.setvariable variable=$($object.Name);isSecret=$($object.isSecret);isOutput=$($object.isOutput)]$($Object.Value)"
+        }
+    }
+}
+
+#region classes
+
+class AahPipelineVariable
+{
+    [string]$Name
+    [string]$Value
+    [bool]$isSecret
+    [bool]$isOutput
+}
+
+#endregion
