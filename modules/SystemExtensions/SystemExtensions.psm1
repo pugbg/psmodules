@@ -223,21 +223,15 @@ function Start-NewProcess
     (
 		#FilePath
 		[Parameter(Mandatory=$true)]
-		[ValidateScript({
-			if (Test-Path -Path $_)
-			{
-				$true
-			}
-			else
-			{
-				throw "File: $_ not found"
-			}
-		})]
-        $FilePath,
+        [string]$FilePath,
 
 		#Arguments
 		[Parameter(Mandatory=$false)]
-        $Arguments,
+        [string]$Arguments,
+
+        #WorkingDirectory
+        [Parameter(Mandatory=$false)]
+		[string]$WorkingDirectory,
 
 		#PassThru
 		[Parameter(Mandatory=$false,ParameterSetName='Default')]
@@ -266,7 +260,11 @@ function Start-NewProcess
 				$ProcessStartInfo.RedirectStandardOutput = $true
 				$ProcessStartInfo.RedirectStandardError = $true
 				$ProcessStartInfo.UseShellExecute = $false
-				$ProcessStartInfo.CreateNoWindow = $true
+                $ProcessStartInfo.CreateNoWindow = $true
+                if ($PSBoundParameters.ContainsKey('WorkingDirectory'))
+                {
+                    $ProcessStartInfo.WorkingDirectory = $WorkingDirectory
+                }
    				if ($PSBoundParameters.ContainsKey('Arguments'))
 				{
 					$ProcessStartInfo.Arguments = $Arguments

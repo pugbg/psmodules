@@ -22,13 +22,13 @@ describe 'AdoAzHelper-TesterExtension' {
             Save-module -Name AdoAzHelper -Path "$ExtesionBinFolderPath\task1\ps_modules"
 
             #Install Dependancies
-            
-            npm --% install vss-web-extension-sdk --save --loglevel=error
+            $null = Invoke-Expression -Command 'npm init -y --no-update-notifier' -ErrorAction Stop
+            $null = Invoke-Expression -Command "npm install vss-web-extension-sdk --save --loglevel=error" -ErrorAction Stop
             $PackageDetailsAsJson = tfx --% extension create --json
             $PackageDetails = $PackageDetailsAsJson | ConvertFrom-Json
 
             #Publish Extension
-            Start-NewProcess -FilePath 'C:\programdata\nodejs\tfx.cmd' -Arguments "extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ReturnResult
+            $null = Invoke-Expression -Command "tfx extension publish --vsix $($PackageDetails.path) --service-url https://marketplace.visualstudio.com --token $PublisherPat --publisher $PublisherId --share-with $AdoOrgToShareTo --no-prompt" -ErrorAction Stop
         }
         finally
         {

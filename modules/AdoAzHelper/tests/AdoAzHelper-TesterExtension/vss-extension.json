@@ -1,7 +1,7 @@
 {
     "manifestVersion": 1,
     "id": "0cab03b4-4a35-4017-91e6-c2889921097b",
-    "version": "0.0.20",
+    "version": "0.0.22",
     "name": "AdoAzHelper-TesterExtension",
     "description": "Tester Extension for the powershell module AdoAzHelper",
     "publisher": "psmodules-tester",
