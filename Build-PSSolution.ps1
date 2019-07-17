@@ -1,6 +1,7 @@
 $ModulesFolder = "$PSScriptRoot\modules"
 
 #Install RequiredModules
+<#
 try
 {
     Write-Information "Install RequiredModules started" -InformationAction Continue
@@ -42,6 +43,9 @@ catch
 {
     throw "Install RequiredModules failed. Details: $_"
 }
+#>
+
+Update-Module -Name PowerShellGet -Scope CurrentUser -Force
 
 #Import RequiredModules from this project
 try
