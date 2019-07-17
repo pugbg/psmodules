@@ -45,7 +45,7 @@ catch
 }
 #>
 
-Update-Module -Name PowerShellGet -Scope CurrentUser -Force
+Install-Module -Name PowerShellGet -Scope CurrentUser -Force
 
 #Import RequiredModules from this project
 try
