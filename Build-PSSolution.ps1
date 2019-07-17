@@ -1,5 +1,7 @@
 $ModulesFolder = "$PSScriptRoot\modules"
 
+Get-Module -name PowerShellGet -ListAvailable
+
 #Install RequiredModules
 try
 {
