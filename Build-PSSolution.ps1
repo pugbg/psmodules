@@ -1,7 +1,7 @@
 $ModulesFolder = "$PSScriptRoot\modules"
 
 #Install RequiredModules
-<#
+
 try
 {
     Write-Information "Install RequiredModules started" -InformationAction Continue
@@ -14,17 +14,6 @@ try
     foreach ($mod in $RequiredModules)
     {
         Remove-Variable -Name ModuleCheck -ErrorAction SilentlyContinue
-        Remove-Variable -Name ModulePSGetInstalled -ErrorAction SilentlyContinue
-        $ModulePSGetInstalled = Get-InstalledModule -Name $mod.Name -ErrorAction SilentlyContinue
-        if ($ModulePSGetInstalled -and $ModulePSGetInstalled.Version -eq $mod.RequiredVersion)
-        {
-        }
-        else
-        {
-            Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) previous version. Updating" -InformationAction Continue
-            Update-Module @mod -ErrorAction Stop 
-        }
-
         $ModuleCheck = Get-Module -FullyQualifiedName @{ModuleName=$mod.Name;RequiredVersion=$Mod.RequiredVersion} -ListAvailable -ErrorAction SilentlyContinue
         if ($ModuleCheck)
         {
@@ -43,7 +32,7 @@ catch
 {
     throw "Install RequiredModules failed. Details: $_"
 }
-#>
+
 
 Install-Module -Name PowerShellGet -Scope CurrentUser -Force
 
