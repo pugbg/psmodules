@@ -1,7 +1,5 @@
 $ModulesFolder = "$PSScriptRoot\modules"
 
-Get-Module -name PowerShellGet -ListAvailable
-
 #Install RequiredModules
 try
 {
@@ -23,7 +21,7 @@ try
         else
         {
             Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) Installing" -InformationAction Continue
-            Install-Module @mod -Scope CurrentUser -Force -ErrorAction Stop
+            Install-Module @mod -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
         }
         Import-Module @mod -ErrorAction Stop
     }
