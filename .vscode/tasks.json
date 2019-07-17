@@ -14,7 +14,7 @@
             "label": "Build Modules",
             "type": "shell",
             "windows": {
-                "command": "& '${workspaceFolder}\\buildPSSolution.ps1'",
+                "command": "& '${workspaceFolder}\\Build-PSSolution.ps1' -InformationAction Continue",
             },
             "group": {
                 "kind": "build",
