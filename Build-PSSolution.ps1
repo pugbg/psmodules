@@ -24,7 +24,7 @@ try
             Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) Installing" -InformationAction Continue
             Install-Module @mod -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
         }
-
+        Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) Importing" -InformationAction Continue
         Import-Module @mod -Force -ErrorAction Stop
     }
     Write-Information "Install RequiredModules completed" -InformationAction Continue
