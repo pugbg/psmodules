@@ -1,3 +1,5 @@
+#region functions
+
 function Get-AzeManagementGroup
 {
     [CmdletBinding()]
@@ -87,7 +89,7 @@ function New-AzeResourceGroup
         [string]$ApiVersion = '2019-05-10',
 
         #oAuthToken
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         [AzeOAuthToken]$oAuthToken,
 
         #PassThru
@@ -97,6 +99,30 @@ function New-AzeResourceGroup
 
     process
     {
+        #Get OAuthToken
+        try
+        {
+            Write-Information "Get OAuthToken started"
+
+            if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                {
+                    $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                }
+                else
+                {
+                    throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                }
+            }
+
+            Write-Information "Get OAuthToken completed"
+        }
+        catch
+        {
+            throw "Get OAuthToken failed. Details: $_"
+        }
+
         $InvokeWebRequest_Params = @{
             Uri            = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups/$($Name)?api-version=$ApiVersion"
             Authentication = 'OAuth'
@@ -229,6 +255,41 @@ function Get-AzeOAuthToken
     }
 }
 
+
+
+function Connect-AzeAccount
+{
+    [CmdletBinding()]
+    param
+    (
+        #TenantId
+        [Parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [string]$TenantId,
+
+        #ApplicationId
+        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [string]$ApplicationId,
+
+        #ApplicationSecret
+        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [string]$ApplicationSecret,
+
+        #Resource
+        [Parameter(Mandatory = $false)]
+        [string]$Resource = 'https://management.core.windows.net/'
+    )
+
+    process
+    {
+        $Token = Get-AzeOAuthToken -TenantId $TenantId -Resource $Resource -ApplicationId $ApplicationId -ApplicationSecret $ApplicationSecret
+        $script:ConnectionCache["$Resource"] = $Token
+    }
+}
+
+#endregion
+
+#region classes
+
 class AzeOAuthToken
 {
     [string]$AccessToken
@@ -238,3 +299,11 @@ class AzeOAuthToken
     [string]$IdToken
     [string]$TenantId
 }
+
+#endregion
+
+#region variables
+
+$ConnectionCache = [System.Collections.Generic.Dictionary[string,AzeOAuthToken]]::new()
+
+#endregion

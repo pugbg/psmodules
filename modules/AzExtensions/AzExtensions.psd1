@@ -12,7 +12,7 @@
 RootModule = 'AzExtensions.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0.6'
+ModuleVersion = '1.0.0.8'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -69,7 +69,7 @@ RequiredModules = @(@{ModuleName = 'Az.Resources'; ModuleVersion = '1.6.0'; })
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'New-AzeResourceGroup', 'Get-AzeOAuthToken'
+FunctionsToExport = 'New-AzeResourceGroup', 'Get-AzeOAuthToken', 'Connect-AzeAccount'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
@@ -93,7 +93,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"5DE930418FBAE660B758955D13986ED299D2803B4CAE81105DE78EB675B376AA","HashAlgorithm":"SHA256","Version":"1.0.0.6"}'
+    VersionControl = '{"Hash":"F8D0F2B4582E41828449A989F311B8B22AF887102317745741699B8549EE450A","HashAlgorithm":"SHA256","Version":"1.0.0.8"}'
 
     PSData = @{
 
