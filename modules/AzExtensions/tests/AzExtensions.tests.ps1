@@ -9,12 +9,20 @@ describe ManagementGroups {
 }
 
 describe 'AzeOAuthToken' {
-    It "Get token for AzureRm api" {
+    It "Get token for AzureRm api not using AzContext" {
         $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
         Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
 
         #Connect-AzAccount -TenantId '098ebab6-0ca3-4735-973c-7e8b14e101ac'
         $r = Get-AzeOAuthToken -TenantId '098ebab6-0ca3-4735-973c-7e8b14e101ac' -AccountId 'gogbg@outlook.com'
+    }
+
+    It "Get token for AzureRm api using AzContext" {
+        $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
+        Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
+
+        $AzContext = Get-AzContext
+        $r = Get-AzeOAuthToken -AzContext $AzContext -ErrorAction Stop
     }
 }
 

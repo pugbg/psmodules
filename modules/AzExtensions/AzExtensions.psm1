@@ -124,11 +124,11 @@ function Get-AzeOAuthToken
     param
     (
         #TenantId
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true,ParameterSetName='UsingAzContextCache')]
         [string]$TenantId,
 
         #AccountId
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true,ParameterSetName='UsingAzContextCache')]
         [string]$AccountId,
 
         #Resource
@@ -137,29 +137,73 @@ function Get-AzeOAuthToken
 
         #Timeout
         [parameter(Mandatory = $false)]
-        [int]$Timeout = 60
+        [int]$Timeout = 60,
+        
+        #AzContext
+        [parameter(Mandatory = $false,ParameterSetName='UsingAzContext')]
+        [Microsoft.Azure.Commands.Profile.Models.Core.PSAzureContext]$AzContext        
     )
 
     process
     {
         $Result = [AzeOAuthToken]::new()
-        $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
-        $SelectedTenantContext = $azProfile.Contexts.Values | Where-Object { ($_.Tenant.Id -eq $TenantId) -and ($_.Account.Id -eq $AccountId) }
-        if (-not $SelectedTenantContext)
-        {
-            Write-Error "Account: $AccountId is not authenticated against Tenant: $TenantId"
-        }
 
-        $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
-        $context = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId", $SelectedTenantContext[0].TokenCache)
-        $Task = $context.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
-        $null = $Task.Wait($Timeout)
-        $result.AccessToken = $Task.Result.AccessToken
-        $result.AccessTokenType = $Task.Result.AccessTokenType
-        $result.AccessTokenAsSecureString = $Task.Result.AccessToken | ConvertTo-SecureString -AsPlainText -Force
-        $result.UserInfo = $Task.Result.UserInfo
-        $result.IdToken = $Task.Result.IdToken
-        $result.TenantId = $Task.Result.TenantId
+        #Get AuthenticationContext
+        try
+        {
+            Write-Information "Get AuthenticationContext started"
+            switch ($PSCmdlet.ParameterSetName)
+            {
+                'UsingAzContext' {
+                    Write-Information "Get AuthenticationContext in progress. Using AzContext from InputParameter"
+                    $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$($AzContext.Tenant.Id)", $AzContext.TokenCache)
+                    $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AzContext.Account.Id, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
+                    break
+                }
+                'UsingAzContextCache' {
+                    Write-Information "Get AuthenticationContext in progress. Using AzContext from Cache"
+                    $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
+                    $SelectedTenantContext = $azProfile.Contexts.Values | Where-Object { ($_.Tenant.Id -eq $TenantId) -and ($_.Account.Id -eq $AccountId) }
+                    if (-not $SelectedTenantContext)
+                    {
+                        Write-Error "Account: $AccountId is not authenticated against Tenant: $TenantId"
+                    }
+                    $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
+                    $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId", $SelectedTenantContext[0].TokenCache)
+                    break
+                }
+    
+                default {
+                    throw "Unsupported ParameterSetName: $_"
+                }
+            }
+
+            Write-Information "Get AuthenticationContext completed"
+        }
+        catch
+        {
+            throw "Get AuthenticationContext failed. Details $_"
+        }
+   
+        #Get oAuthToken
+        try {
+            Write-Information "Get oAuthToken started"
+            $Task = $AuthenticationContext.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
+            if (-not ($Task.Wait([timespan]::FromSeconds($Timeout))))
+            {
+                throw $task.Exception
+            }
+            $result.AccessToken = $Task.Result.AccessToken
+            $result.AccessTokenType = $Task.Result.AccessTokenType
+            $result.AccessTokenAsSecureString = $Task.Result.AccessToken | ConvertTo-SecureString -AsPlainText -Force
+            $result.UserInfo = $Task.Result.UserInfo
+            $result.IdToken = $Task.Result.IdToken
+            $result.TenantId = $Task.Result.TenantId
+            Write-Information "Get oAuthToken completed"
+        }
+        catch {
+            throw "Get oAuthToken failed. Details: $_"
+        }
 
         #Return Result
         $result
