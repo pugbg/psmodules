@@ -7,12 +7,23 @@ try
     $RequiredModules = (
         @{
             Name='PowerShellGet'
-            RequiredVersion='2.2'
+            RequiredVersion='2.1.5'
         }
     )
     foreach ($mod in $RequiredModules)
     {
         Remove-Variable -Name ModuleCheck -ErrorAction SilentlyContinue
+        Remove-Variable -Name ModulePSGetInstalled -ErrorAction SilentlyContinue
+        $ModulePSGetInstalled = Get-InstalledModule -Name $mod.Name -ErrorAction SilentlyContinue
+        if ($ModulePSGetInstalled -and $ModulePSGetInstalled.Version -eq $mod.RequiredVersion)
+        {
+        }
+        else
+        {
+            Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) previous version. Updating" -InformationAction Continue
+            Update-Module @mod -ErrorAction Stop 
+        }
+
         $ModuleCheck = Get-Module -FullyQualifiedName @{ModuleName=$mod.Name;RequiredVersion=$Mod.RequiredVersion} -ListAvailable -ErrorAction SilentlyContinue
         if ($ModuleCheck)
         {
