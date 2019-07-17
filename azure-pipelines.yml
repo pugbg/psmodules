@@ -12,5 +12,5 @@ stages:
       displayName: PSBuild Modules
       enabled: true
       inputs:
-        filePath: "buildPSSolution.ps1"
+        filePath: "Build-PSSolution.ps1"
         pwsh: true
