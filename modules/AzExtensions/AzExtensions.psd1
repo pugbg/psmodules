@@ -12,7 +12,7 @@
 RootModule = 'AzExtensions.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0.5'
+ModuleVersion = '1.0.0.6'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,7 +93,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"088E75E8D708598B8EDBB3A4FDA709A9C5333C59A2A2E8D81D2AA88E4133B59F","HashAlgorithm":"SHA256","Version":"1.0.0.5"}'
+    VersionControl = '{"Hash":"5DE930418FBAE660B758955D13986ED299D2803B4CAE81105DE78EB675B376AA","HashAlgorithm":"SHA256","Version":"1.0.0.6"}'
 
     PSData = @{
 

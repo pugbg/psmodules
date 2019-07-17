@@ -124,6 +124,7 @@ function Get-AzeOAuthToken
     param
     (
         #TenantId
+        [Parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
         [Parameter(Mandatory = $true,ParameterSetName='UsingAzContextCache')]
         [string]$TenantId,
 
@@ -141,7 +142,15 @@ function Get-AzeOAuthToken
         
         #AzContext
         [parameter(Mandatory = $false,ParameterSetName='UsingAzContext')]
-        [Microsoft.Azure.Commands.Profile.Models.Core.PSAzureContext]$AzContext        
+        [Microsoft.Azure.Commands.Profile.Models.Core.PSAzureContext]$AzContext,
+        
+        #ApplicationId
+        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [string]$ApplicationId,
+
+        #ApplicationSecret
+        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [string]$ApplicationSecret
     )
 
     process
@@ -158,6 +167,7 @@ function Get-AzeOAuthToken
                     Write-Information "Get AuthenticationContext in progress. Using AzContext from InputParameter"
                     $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$($AzContext.Tenant.Id)", $AzContext.TokenCache)
                     $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AzContext.Account.Id, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
+                    $Task = $AuthenticationContext.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
                     break
                 }
                 'UsingAzContextCache' {
@@ -170,9 +180,18 @@ function Get-AzeOAuthToken
                     }
                     $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AccountId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
                     $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId", $SelectedTenantContext[0].TokenCache)
+                    $Task = $AuthenticationContext.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
                     break
                 }
     
+                'UsingServicePrincipal' {
+                    $AdCreds = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientCredential]::new($ApplicationId,$ApplicationSecret)
+                    $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId")
+                    $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($ApplicationId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
+                    $Task = $AuthenticationContext.AcquireTokenAsync($Resource, $AdCreds)
+                    break
+                }
+
                 default {
                     throw "Unsupported ParameterSetName: $_"
                 }
@@ -188,7 +207,7 @@ function Get-AzeOAuthToken
         #Get oAuthToken
         try {
             Write-Information "Get oAuthToken started"
-            $Task = $AuthenticationContext.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
+            
             if (-not ($Task.Wait([timespan]::FromSeconds($Timeout))))
             {
                 throw $task.Exception
