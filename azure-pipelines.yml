@@ -1,17 +1,16 @@
 trigger:
 - master
 
-pool:
-  vmImage: 'windows-2019'
-
 stages:
 - stage: Build
   jobs:
   - job: BuildModules
+    pool:
+      vmImage: 'windows-2019'
     steps:
     - task: PowerShell@2
       displayName: PSBuild Modules
       enabled: true
       inputs:
         filePath: "buildPSSolution.ps1"
-        arguments: ""
+        pwsh: true
