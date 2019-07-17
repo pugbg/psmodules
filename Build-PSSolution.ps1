@@ -7,7 +7,7 @@ try
     $RequiredModules = (
         @{
             Name='PowerShellGet'
-            RequiredVersion='2.1.5'
+            RequiredVersion='2.2'
         }
     )
     foreach ($mod in $RequiredModules)
