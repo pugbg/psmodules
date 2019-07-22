@@ -28,6 +28,12 @@ stages:
       vmImage: 'windows-2019'
     steps:
     - task: PowerShell@2
+      displayName: Prepare Pipeline Agent
+      enabled: true
+      inputs:
+        filePath: "Prepare-PipelineAgent.ps1"
+        pwsh: true
+    - task: PowerShell@2
       displayName: PSPublish Modules
       enabled: true
       inputs:
