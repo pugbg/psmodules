@@ -1,11 +1,9 @@
-$UserVariables = @{
-}
 $SolutionStructure=@{
 	#Example: @(@{SourcePath='c:\modules'},@{BuildPath='c:\modules bin'})
 	ModulesPath=@(
 		@{
-			SourcePath="$env:ScriptRoot\modules"
-			BuildPath="$env:ScriptRoot\bin\modules"
+			SourcePath="$($Variables['ScriptRoot'])\modules"
+			BuildPath="$($Variables['ScriptRoot'])\bin\modules"
 		}
 	)
 	ScriptPath=@()
@@ -33,7 +31,7 @@ $Packaging=@{
 	PSGetPublishRepositories=@(
 		@{
 			Name='PSGallery'
-			NuGetApiKey=$UserVariables['PSGalleryApiKey']
+			NuGetApiKey=$Variables['PSGalleryApiKey']
 		}
 	)
 	#List of Modules that should be published to PSGet Repository

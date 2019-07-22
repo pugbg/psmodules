@@ -2411,14 +2411,27 @@ function Get-PSSolutionConfiguration
     {
         try
         {
-            $SolutionConfigRaw = Get-Content -Path $Path.FullName -Raw -ErrorAction Stop
-            $SolutionRootFolder = Split-Path -Path $Path.FullName -Parent -ErrorAction Stop
+            $SolutionConfig = [System.Collections.Generic.List[string]]::new()
+            
+            #Add Variables
+            $SolutionConfig.Add("`$env:ScriptRoot = '$(Split-Path -Path $Path.FullName -Parent -ErrorAction Stop)'")
             if ($PSBoundParameters.ContainsKey('UserVariables'))
             {
-                Set-Variable -Name UserVariables -Value $UserVariables -Scope global -ErrorAction Stop
+                $SolutionConfig.Add("`$Variables = $(Convertto-string -InputObject $UserVariables)")
             }
-            $r = "`$env:ScriptRoot = '$SolutionRootFolder'" + "`n" + $SolutionConfigRaw
-            New-DynamicConfiguration -Definition ([scriptblock]::Create($r)) -ErrorAction Stop
+            else
+            {
+                $SolutionConfig.Add("`$Variables = @{}")
+            }
+            $SolutionConfig.Add("`$Variables['ScriptRoot'] = '$(Split-Path -Path $Path.FullName -Parent -ErrorAction Stop)'")
+
+            #Get config from file
+            Get-Content -Path $Path.FullName -ErrorAction Stop | foreach {
+                $SolutionConfig.Add($_)
+            }
+            $SolutionConfigAsString = $SolutionConfig -join [System.Environment]::NewLine
+            
+            New-DynamicConfiguration -Definition ([scriptblock]::Create($SolutionConfigAsString)) -ErrorAction Stop
         }
         catch
         {
