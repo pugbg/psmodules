@@ -1,6 +1,7 @@
 [Cmdletbinding()]
 param
 (
+	[Parameter(Mandatory=$true)]
 	[string]$PSGalleryApiKey
 )
 
