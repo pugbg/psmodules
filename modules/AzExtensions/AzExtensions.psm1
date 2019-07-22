@@ -143,6 +143,156 @@ function New-AzeResourceGroup
     }
 }
 
+function Get-AzeResourceGroup
+{
+    [CmdletBinding()]
+    param
+    (
+        #SubscriptionId
+        [Parameter(Mandatory = $true)]
+        [string]$SubscriptionId,
+
+        #Name
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy,
+
+        #ApiVersion
+        [Parameter(Mandatory = $false)]
+        [string]$ApiVersion = '2019-05-10',
+
+        #oAuthToken
+        [Parameter(Mandatory = $false)]
+        [AzeOAuthToken]$oAuthToken
+    )
+
+    process
+    {
+        #Get OAuthToken
+        try
+        {
+            Write-Information "Get OAuthToken started"
+
+            if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                {
+                    $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                }
+                else
+                {
+                    throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                }
+            }
+
+            Write-Information "Get OAuthToken completed"
+        }
+        catch
+        {
+            throw "Get OAuthToken failed. Details: $_"
+        }
+
+        $InvokeWebRequest_Params = @{
+            Uri            = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups/$($Name)?api-version=$ApiVersion"
+            Authentication = 'OAuth'
+            Token          = $oAuthToken.AccessTokenAsSecureString
+            Method         = 'GET'
+            Body           = (@{location = $location } | convertto-json -Compress)
+            ContentType    = 'application/json'
+        }
+        if ($PSBoundParameters.ContainsKey('Proxy'))
+        {
+            $InvokeWebRequest_Params.Add('Proxy', $Proxy)
+        }
+        $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
+        $WebResult.Content | ConvertFrom-Json -ErrorAction Stop
+    }
+}
+
+function Remove-AzeResourceGroup
+{
+    [CmdletBinding()]
+    param
+    (
+        #SubscriptionId
+        [Parameter(Mandatory = $true)]
+        [string]$SubscriptionId,
+
+        #Name
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy,
+
+        #ApiVersion
+        [Parameter(Mandatory = $false)]
+        [string]$ApiVersion = '2019-05-10',
+
+        #oAuthToken
+        [Parameter(Mandatory = $false)]
+        [AzeOAuthToken]$oAuthToken
+    )
+
+    process
+    {
+        #Get OAuthToken
+        try
+        {
+            Write-Information "Get OAuthToken started"
+
+            if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                {
+                    $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                }
+                else
+                {
+                    throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                }
+            }
+
+            Write-Information "Get OAuthToken completed"
+        }
+        catch
+        {
+            throw "Get OAuthToken failed. Details: $_"
+        }
+
+        $InvokeWebRequest_Params = @{
+            Uri            = "https://management.azure.com/subscriptions/$SubscriptionId/resourcegroups/$($Name)?api-version=$ApiVersion"
+            Authentication = 'OAuth'
+            Token          = $oAuthToken.AccessTokenAsSecureString
+            Method         = 'DELETE'
+            ContentType    = 'application/json'
+        }
+        if ($PSBoundParameters.ContainsKey('Proxy'))
+        {
+            $InvokeWebRequest_Params.Add('Proxy', $Proxy)
+        }
+        $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
+        
+        #Wait Result
+        $WaitAzeWebResult_Params = @{
+            WebResponse=$WebResult
+        }
+        if ($PSBoundParameters.ContainsKey('Proxy'))
+        {
+            $WaitAzeWebResult_Params.Add('Proxy', $Proxy)
+        }
+        if ($PSBoundParameters.ContainsKey('oAuthToken'))
+        {
+            $WaitAzeWebResult_Params.Add('oAuthToken', $oAuthToken)
+        }
+        Wait-AzeWebResult @WaitAzeWebResult_Params -ErrorAction Stop
+    }
+}
+
 function Get-AzeOAuthToken
 {
     [CmdletBinding()]
@@ -150,12 +300,12 @@ function Get-AzeOAuthToken
     param
     (
         #TenantId
-        [Parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
-        [Parameter(Mandatory = $true,ParameterSetName='UsingAzContextCache')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'UsingAzContextCache')]
         [string]$TenantId,
 
         #AccountId
-        [Parameter(Mandatory = $true,ParameterSetName='UsingAzContextCache')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'UsingAzContextCache')]
         [string]$AccountId,
 
         #Resource
@@ -167,15 +317,15 @@ function Get-AzeOAuthToken
         [int]$Timeout = 60,
         
         #AzContext
-        [parameter(Mandatory = $false,ParameterSetName='UsingAzContext')]
+        [parameter(Mandatory = $false, ParameterSetName = 'UsingAzContext')]
         [Microsoft.Azure.Commands.Profile.Models.Core.PSAzureContext]$AzContext,
         
         #ApplicationId
-        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
         [string]$ApplicationId,
 
         #ApplicationSecret
-        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
         [string]$ApplicationSecret
     )
 
@@ -189,14 +339,16 @@ function Get-AzeOAuthToken
             Write-Information "Get AuthenticationContext started"
             switch ($PSCmdlet.ParameterSetName)
             {
-                'UsingAzContext' {
+                'UsingAzContext'
+                {
                     Write-Information "Get AuthenticationContext in progress. Using AzContext from InputParameter"
                     $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$($AzContext.Tenant.Id)", $AzContext.TokenCache)
                     $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($AzContext.Account.Id, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
                     $Task = $AuthenticationContext.AcquireTokenSilentAsync($Resource, [Microsoft.Azure.Commands.Common.Authentication.AdalConfiguration]::PowerShellClientId, $UserId)
                     break
                 }
-                'UsingAzContextCache' {
+                'UsingAzContextCache'
+                {
                     Write-Information "Get AuthenticationContext in progress. Using AzContext from Cache"
                     $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
                     $SelectedTenantContext = $azProfile.Contexts.Values | Where-Object { ($_.Tenant.Id -eq $TenantId) -and ($_.Account.Id -eq $AccountId) }
@@ -210,15 +362,17 @@ function Get-AzeOAuthToken
                     break
                 }
     
-                'UsingServicePrincipal' {
-                    $AdCreds = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientCredential]::new($ApplicationId,$ApplicationSecret)
+                'UsingServicePrincipal'
+                {
+                    $AdCreds = [Microsoft.IdentityModel.Clients.ActiveDirectory.ClientCredential]::new($ApplicationId, $ApplicationSecret)
                     $AuthenticationContext = [Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext]::new("https://login.microsoftonline.com/$TenantId")
                     $UserId = [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier]::new($ApplicationId, [Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifierType]::RequiredDisplayableId)
                     $Task = $AuthenticationContext.AcquireTokenAsync($Resource, $AdCreds)
                     break
                 }
 
-                default {
+                default
+                {
                     throw "Unsupported ParameterSetName: $_"
                 }
             }
@@ -231,7 +385,8 @@ function Get-AzeOAuthToken
         }
    
         #Get oAuthToken
-        try {
+        try
+        {
             Write-Information "Get oAuthToken started"
             
             if (-not ($Task.Wait([timespan]::FromSeconds($Timeout))))
@@ -246,7 +401,8 @@ function Get-AzeOAuthToken
             $result.TenantId = $Task.Result.TenantId
             Write-Information "Get oAuthToken completed"
         }
-        catch {
+        catch
+        {
             throw "Get oAuthToken failed. Details: $_"
         }
 
@@ -255,23 +411,21 @@ function Get-AzeOAuthToken
     }
 }
 
-
-
 function Connect-AzeAccount
 {
     [CmdletBinding()]
     param
     (
         #TenantId
-        [Parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
         [string]$TenantId,
 
         #ApplicationId
-        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
         [string]$ApplicationId,
 
         #ApplicationSecret
-        [parameter(Mandatory = $true,ParameterSetName='UsingServicePrincipal')]
+        [parameter(Mandatory = $true, ParameterSetName = 'UsingServicePrincipal')]
         [string]$ApplicationSecret,
 
         #Resource
@@ -283,6 +437,110 @@ function Connect-AzeAccount
     {
         $Token = Get-AzeOAuthToken -TenantId $TenantId -Resource $Resource -ApplicationId $ApplicationId -ApplicationSecret $ApplicationSecret
         $script:ConnectionCache["$Resource"] = $Token
+    }
+}
+
+function Wait-AzeWebResult
+{
+    [CmdletBinding()]
+    param
+    (
+        #WebResponse
+        [Parameter(Mandatory = $true)]
+        [Microsoft.PowerShell.Commands.WebResponseObject]$WebResponse,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy,
+
+        #oAuthToken
+        [Parameter(Mandatory = $false)]
+        [AzeOAuthToken]$oAuthToken
+    )
+
+    process
+    {
+        if (($WebResponse.StatusCode -eq '202') -and $WebResponse.Headers.ContainsKey('Location'))
+        {
+            #Get OAuthToken
+            try
+            {
+                Write-Information "Get OAuthToken started"
+
+                if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+                {
+                    if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                    {
+                        $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                    }
+                    else
+                    {
+                        throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                    }
+                }
+
+                Write-Information "Get OAuthToken completed"
+            }
+            catch
+            {
+                throw "Get OAuthToken failed. Details: $_"
+            }
+
+            #Wait Retry-After period
+            if ($WebResult.Headers.ContainsKey('Date'))
+            {
+                $SecondsFromRequest = ((get-date) - [datetime]::Parse($WebResult.Headers['Date'])).TotalSeconds
+            }
+            else
+            {
+                $SecondsFromRequest = 0
+            }
+            if ($WebResult.Headers.ContainsKey('Retry-After'))
+            {
+                $SleepSeconds = [int]::Parse($WebResult.Headers['Retry-After']) - $SecondsFromRequest
+            }
+            else
+            {
+                $SleepSeconds = 5 - $SecondsFromRequest
+            }
+            Write-Information "Wait x-ms-request-id: $($WebResponse.Headers['x-ms-request-id']). Timestamp: $(Get-Date). Sleep for: $($SleepSeconds) seconds"
+            if ($SleepSeconds -gt 0)
+            {
+                Start-Sleep -Seconds $SleepSeconds
+            }
+
+            #Check if operation is completed
+            $InvokeWebRequest_Params = @{
+                Uri            = $WebResponse.Headers['Location'][0]
+                Authentication = 'OAuth'
+                Token          = $oAuthToken.AccessTokenAsSecureString
+                Method         = 'GET'
+                ContentType    = 'application/json'
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy'))
+            {
+                $InvokeWebRequest_Params.Add('Proxy', $Proxy)
+            }
+            $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
+
+            #Wait
+            $WaitAzeWebResult_Params = @{
+                WebResponse = $WebResult
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy'))
+            {
+                $WaitAzeWebResult_Params.Add('Proxy', $Proxy)
+            }
+            if ($PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                $WaitAzeWebResult_Params.Add('oAuthToken', $oAuthToken)
+            }
+            Wait-AzeWebResult @WaitAzeWebResult_Params -ErrorAction Stop
+        }
+        elseif (($WebResponse.StatusCode -eq '202') -and (-not $WebResponse.Headers.ContainsKey('Location')))
+        {
+            throw "Response StatusCode: $($WebResponse.StatusCode), but no 'Location' header found"
+        }
     }
 }
 
@@ -304,6 +562,6 @@ class AzeOAuthToken
 
 #region variables
 
-$ConnectionCache = [System.Collections.Generic.Dictionary[string,AzeOAuthToken]]::new()
+$ConnectionCache = [System.Collections.Generic.Dictionary[string, AzeOAuthToken]]::new()
 
 #endregion

@@ -20,3 +20,17 @@ stages:
       inputs:
         filePath: "Build-PSSolution.ps1"
         pwsh: true
+- stage: Release
+  condition: and(succeeded(), eq(variables['PublishToPsGallery'], 'true'))
+  jobs:
+  - job: PublishToPSGallery
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+    - task: PowerShell@2
+      displayName: PSPublish Modules
+      enabled: true
+      inputs:
+        filePath: "Publish-PSSolution.ps1"
+        pwsh: true
+        arguments: "-PSGalleryApiKey $(PSGalleryApiKey)"

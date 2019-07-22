@@ -1,13 +1,3 @@
-
-describe ManagementGroups {
-    It "Retrive all groups recursively" {
-        $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
-        Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
-
-        $r = Get-AzeManagementGroup -Recurse
-    }
-}
-
 describe 'AzeOAuthToken' {
 
     context "Using User" {
@@ -35,9 +25,9 @@ describe 'AzeOAuthToken' {
     }
 
     context "Using SPN" {
-            $TenantId         = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
-            $ApplicationId = Read-Host -Prompt 'ApplicationId:'
-            $ApplicationSecret = Read-Host -Prompt 'ApplicationSecret:'
+        $TenantId = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
+        $ApplicationId = Read-Host -Prompt 'ApplicationId:'
+        $ApplicationSecret = Read-Host -Prompt 'ApplicationSecret:'
 
         It "Get token for AzureRm api using AzContext" {
             $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
@@ -50,27 +40,87 @@ describe 'AzeOAuthToken' {
 
 describe 'ResourceGroup' {
 
-    context "Create" {
+    BeforeEach {
 
-        it "Create using Get-AzeOAuthToken" {
-            $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
-            Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
-    
-            $oAuthToken = Get-AzeOAuthToken -TenantId '098ebab6-0ca3-4735-973c-7e8b14e101ac' -AccountId 'gogbg@outlook.com'
-            $RG = New-AzeResourceGroup -passthru -Proxy 'http://10.180.0.8:8080' -SubscriptionId '512d7608-908d-4b85-be6a-36ecdf28734d' -Name 'test-resg02' -Location 'northeurope' -Tag @{Tag1 = '1' } -oAuthToken $oAuthToken
+        #Configure Context to skip processing 'it` statements on failed 'it' statement
+        $CurrentTestGroup = InModuleScope -ModuleName Pester { $Pester.CurrentTestGroup }
+        if (($CurrentTestGroup.Actions.Passed -contains $false) -and ((InModuleScope -ModuleName Pester { $Name }) -ne 'Cleanup'))
+        {
+            Set-ItResult -Skipped -Because 'previous test failed'
         }
 
-        it "Create using Connect-AzeAccount" {
-            $TenantId         = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
-            $ApplicationId = Read-Host -Prompt 'ApplicationId:'
-            $ApplicationSecret = Read-Host -Prompt 'ApplicationSecret:'
+    }
 
+    context "Create, Get, Remove using '-oAuthToken' parameter" {
+
+        $TestContext = @{
+            SubscriptionId     = 'a65a9513-cde5-4852-8b5d-4f50d3c43c58'
+            TenantId           = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
+            ResourceGroupName  = 'test-AzeModuleGrp01'
+            Location           = 'northeurope'
+            oAuthToken         = $null
+            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
+            ApplicationSecret = $Env:ApplicationSecret
+        }
+
+        it "Initialize" {
             $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
             Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
-    
-            Connect-AzeAccount -TenantId $TenantId -ApplicationId $ApplicationId -ApplicationSecret $ApplicationSecret
-            $RG = New-AzeResourceGroup -passthru -SubscriptionId 'a65a9513-cde5-4852-8b5d-4f50d3c43c58' -Name 'test-resg02' -Location 'northeurope' -Tag @{Tag1 = '1' }
+            $TestContext['oAuthToken'] = Get-AzeOAuthToken -TenantId $TestContext['TenantId'] -ApplicationId $TestContext['ApplicationId'] -ApplicationSecret $TestContext['ApplicationSecret']
         }
+
+        it "Create using '-oAuthToken' parameter" {
+            $RG = New-AzeResourceGroup -passthru -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -Location $TestContext['Location'] -oAuthToken $TestContext['oAuthToken']
+            $RG.Name | should -be $TestContext['ResourceGroupName']
+            $RG.location | should -be $TestContext['Location']
+        }
+
+        it "Get using '-oAuthToken' parameter" {
+            $RG = Get-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -oAuthToken $TestContext['oAuthToken']
+            $RG.Name | should -be $TestContext['ResourceGroupName']
+        }
+
+        it "Remove using '-oAuthToken' parameter" {
+            Remove-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -oAuthToken $TestContext['oAuthToken']
+            {Get-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -oAuthToken $TestContext['oAuthToken'] -ErrorAction Stop } | should -Throw
+        }
+
+    }
+
+    context "Create, Get, Remove not using '-oAuthToken' parameter" {
+
+        $TestContext = @{
+            SubscriptionId     = 'a65a9513-cde5-4852-8b5d-4f50d3c43c58'
+            TenantId           = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
+            ResourceGroupName  = 'test-AzeModuleGrp02'
+            Location           = 'northeurope'
+            oAuthToken         = $null
+            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
+            ApplicationSecret = $Env:ApplicationSecret
+        }
+
+        it "Initialize" {
+            $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
+            Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
+            Connect-AzeAccount -TenantId $TestContext['TenantId'] -ApplicationId $TestContext['ApplicationId'] -ApplicationSecret $TestContext['ApplicationSecret']
+        }
+
+        it "Create not using '-oAuthToken' parameter" {
+            $RG = New-AzeResourceGroup -passthru -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -Location $TestContext['Location']
+            $RG.Name | should -be $TestContext['ResourceGroupName']
+            $RG.location | should -be $TestContext['Location']
+        }
+
+        it "Get not using '-oAuthToken' parameter" {
+            $RG = Get-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] 
+            $RG.Name | should -be $TestContext['ResourceGroupName']
+        }
+
+        it "Remove not using '-oAuthToken' parameter" {
+            Remove-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName']
+            {Get-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -ErrorAction Stop } | should -Throw
+        }
+
     }
 
 }
