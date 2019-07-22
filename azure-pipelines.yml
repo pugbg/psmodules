@@ -25,4 +25,4 @@ stages:
       enabled: true
       inputs:
         artifactName: psmodules
-        targetpath: '.'
+        targetpath: '.\psmodules'
