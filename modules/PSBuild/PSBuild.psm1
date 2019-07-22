@@ -2412,7 +2412,7 @@ function Get-PSSolutionConfiguration
         try
         {
             $SolutionConfigRaw = Get-Content -Path $Path.FullName -Raw -ErrorAction Stop
-            $SolutionRootFolder = Split-Path -Path $Path -Parent -ErrorAction Stop
+            $SolutionRootFolder = Split-Path -Path $Path.FullName -Parent -ErrorAction Stop
             if ($PSBoundParameters.ContainsKey('UserVariables'))
             {
                 Set-Variable -Name UserVariables -Value $UserVariables -Scope global -ErrorAction Stop
