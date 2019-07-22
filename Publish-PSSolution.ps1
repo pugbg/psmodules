@@ -26,7 +26,7 @@ process
 		throw "Import RequiredModules from this project failed. Details: $_"
 	}
 		
-	$SolutionConfiguration = Get-PSSolutionConfiguration -Path 'buildconfig.psd1' -UserVariables @{
+	$SolutionConfiguration = Get-PSSolutionConfiguration -Path "$PSScriptRoot\buildconfig.psd1" -UserVariables @{
 		PSGalleryApiKey=$PSGalleryApiKey
 	}
 	Publish-PSSolution -SolutionConfigObject $SolutionConfiguration -Verbose -ErrorAction Stop
