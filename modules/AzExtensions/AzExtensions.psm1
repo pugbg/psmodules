@@ -93,7 +93,7 @@ function New-AzeResourceGroup
         [AzeOAuthToken]$oAuthToken,
 
         #PassThru
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
 
@@ -136,7 +136,7 @@ function New-AzeResourceGroup
             $InvokeWebRequest_Params.Add('Proxy', $Proxy)
         }
         $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
-        if ($PSBoundParameters.ContainsKey('PassThru'))
+        if ($PassThru.IsPresent)
         {
             $WebResult.Content | ConvertFrom-Json -ErrorAction Stop
         }
@@ -293,6 +293,167 @@ function Remove-AzeResourceGroup
     }
 }
 
+function New-AzeRoleAssignment
+{
+    [CmdletBinding()]
+    param
+    (
+        #PrincipalId
+        [Parameter(Mandatory = $true)]
+        [string]$PrincipalId,
+
+        #Scope
+        [Parameter(Mandatory = $true)]
+        [string]$Scope,
+
+        #RoleDefinitionName
+        [Parameter(Mandatory = $true)]
+        [string]$RoleDefinitionId,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy,
+
+        #ApiVersion
+        [Parameter(Mandatory = $false)]
+        [string]$ApiVersion = '2015-07-01',
+
+        #oAuthToken
+        [Parameter(Mandatory = $false)]
+        [AzeOAuthToken]$oAuthToken,
+
+        #PassThru
+        [Parameter(Mandatory = $false)]
+        [switch]$PassThru
+
+    )
+
+    process
+    {
+        #Get OAuthToken
+        try
+        {
+            Write-Information "Get OAuthToken started"
+
+            if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                {
+                    $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                }
+                else
+                {
+                    throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                }
+            }
+
+            Write-Information "Get OAuthToken completed"
+        }
+        catch
+        {
+            throw "Get OAuthToken failed. Details: $_"
+        }
+
+        $InvokeWebRequest_Params = @{
+            Uri            = "https://management.azure.com/$Scope/providers/Microsoft.Authorization/roleAssignments/$((New-Guid).Guid)?api-version=$ApiVersion"
+            Authentication = 'OAuth'
+            Token          = $oAuthToken.AccessTokenAsSecureString
+            Method         = 'PUT'
+            ContentType    = 'application/json'
+            Body = (@{
+                properties=@{
+                    roleDefinitionId=$RoleDefinitionId
+                    principalId=$PrincipalId
+                }
+            } | convertto-json -Compress -ErrorAction Stop)
+        }
+        if ($PSBoundParameters.ContainsKey('Proxy'))
+        {
+            $InvokeWebRequest_Params.Add('Proxy', $Proxy)
+        }
+        $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
+        
+        if ($PassThru.IsPresent)
+        {
+            $WebResult.Content | ConvertFrom-Json -ErrorAction Stop
+        }
+    }
+}
+function Get-AzeRoleDefinition
+{
+    [CmdletBinding()]
+    param
+    (
+        #Name
+        [Parameter(Mandatory = $false)]
+        [string]$Name,
+
+        #Scope
+        [Parameter(Mandatory = $true)]
+        [string]$Scope,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy,
+
+        #ApiVersion
+        [Parameter(Mandatory = $false)]
+        [string]$ApiVersion = '2015-07-01',
+
+        #oAuthToken
+        [Parameter(Mandatory = $false)]
+        [AzeOAuthToken]$oAuthToken
+    )
+
+    process
+    {
+        #Get OAuthToken
+        try
+        {
+            Write-Information "Get OAuthToken started"
+
+            if (-not $PSBoundParameters.ContainsKey('oAuthToken'))
+            {
+                if ($Script:ConnectionCache.ContainsKey('https://management.core.windows.net/'))
+                {
+                    $oAuthToken = $Script:ConnectionCache['https://management.core.windows.net/']
+                }
+                else
+                {
+                    throw "oAuthToken not found. Use Connect-AzeAccount to connect"
+                }
+            }
+
+            Write-Information "Get OAuthToken completed"
+        }
+        catch
+        {
+            throw "Get OAuthToken failed. Details: $_"
+        }
+
+        $InvokeWebRequest_Params = @{
+            Authentication = 'OAuth'
+            Token          = $oAuthToken.AccessTokenAsSecureString
+            Method         = 'GET'
+            ContentType    = 'application/json'
+        }
+        if ($PSBoundParameters.ContainsKey('Name'))
+        {
+            $InvokeWebRequest_Params.Add('Uri',"https://management.azure.com/$Scope/providers/Microsoft.Authorization/roleDefinitions?`$filter=roleName eq '$Name'&api-version=$ApiVersion")
+        }
+        else
+        {
+            $InvokeWebRequest_Params.Add('Uri',"https://management.azure.com/$Scope/providers/Microsoft.Authorization/roleDefinitions?api-version=$ApiVersion")
+        }
+        if ($PSBoundParameters.ContainsKey('Proxy'))
+        {
+            $InvokeWebRequest_Params.Add('Proxy', $Proxy)
+        }
+        $WebResult = Invoke-WebRequest @InvokeWebRequest_Params -ErrorAction Stop
+        $WebResult.Content | ConvertFrom-Json -ErrorAction Stop | select -ExpandProperty Value
+    }
+}
+
 function Get-AzeOAuthToken
 {
     [CmdletBinding()]
@@ -410,7 +571,6 @@ function Get-AzeOAuthToken
         $result
     }
 }
-
 function Connect-AzeAccount
 {
     [CmdletBinding()]
@@ -439,7 +599,6 @@ function Connect-AzeAccount
         $script:ConnectionCache["$Resource"] = $Token
     }
 }
-
 function Wait-AzeWebResult
 {
     [CmdletBinding()]

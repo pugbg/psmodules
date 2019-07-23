@@ -124,3 +124,47 @@ describe 'ResourceGroup' {
     }
 
 }
+
+describe 'RoleAssignment' {
+  
+    BeforeEach {
+
+        #Configure Context to skip processing 'it` statements on failed 'it' statement
+        $CurrentTestGroup = InModuleScope -ModuleName Pester { $Pester.CurrentTestGroup }
+        if (($CurrentTestGroup.Actions.Passed -contains $false) -and ((InModuleScope -ModuleName Pester { $Name }) -ne 'Cleanup'))
+        {
+            Set-ItResult -Skipped -Because 'previous test failed'
+        }
+
+    }
+
+    context "Create not using '-oAuthToken' parameter" {
+        $TestContext = @{
+            SubscriptionId     = 'a65a9513-cde5-4852-8b5d-4f50d3c43c58'
+            TenantId           = '098ebab6-0ca3-4735-973c-7e8b14e101ac'
+            ResourceGroupName  = 'test-AzeModuleGrp03'
+            Location           = 'northeurope'
+            oAuthToken         = $null
+            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
+            ApplicationSecret = $Env:ApplicationSecret
+            PrincipalId = '065920d4-336e-44e3-a44a-3b18aaf85041'
+        }
+
+        it "Initialize" {
+            $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
+            Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
+            Connect-AzeAccount -TenantId $TestContext['TenantId'] -ApplicationId $TestContext['ApplicationId'] -ApplicationSecret $TestContext['ApplicationSecret']
+            New-AzeResourceGroup -SubscriptionId $TestContext['SubscriptionId'] -Name $TestContext['ResourceGroupName'] -Location $TestContext['Location']
+        }
+
+        it "Create on ResourceGroup scope" {
+            $RoleDefinition = Get-AzeRoleDefinition -Name 'Contributor' -Scope "subscriptions/$($TestContext['SubscriptionId'])"
+            $RoleAssignment = New-AzeRoleAssignment -PrincipalId $TestContext['PrincipalId'] -Scope "subscriptions/$($TestContext['SubscriptionId'])/resourceGroups/$($TestContext['ResourceGroupName'])" -RoleDefinitionId $RoleDefinition.Id -PassThru
+        }
+
+        it "Create on Subscription scope" {
+            $RoleDefinition = Get-AzeRoleDefinition -Name 'Contributor' -Scope "subscriptions/$($TestContext['SubscriptionId'])"
+            $RoleAssignment = New-AzeRoleAssignment -PrincipalId $TestContext['PrincipalId'] -Scope "subscriptions/$($TestContext['SubscriptionId'])" -RoleDefinitionId $RoleDefinition.Id -PassThru
+        }
+    }
+}
