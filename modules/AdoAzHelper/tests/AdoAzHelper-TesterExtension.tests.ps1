@@ -36,3 +36,56 @@ describe 'AdoAzHelper-TesterExtension' {
         }
     }
 }
+
+describe "AahPipelineVariable" {
+
+    $env:System_Culture = 'en'
+
+    context "Set single variable" {
+        $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
+        Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
+
+        $result = [System.Collections.Generic.List[string]]::new()
+        Set-AahPipelineVariable -InputObject @{
+            Name     = 'Var1'
+            isSecret = $false
+            isOutput = $true
+            Value    = 'Value1'
+        } 6> 1 | foreach {
+            $result.add($_)
+        }
+
+        $result.Count | should -be 1
+    }
+
+    context "Set multiple variables" {
+        $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
+        Import-Module -FullyQualifiedName $ModuleRoot -Force -ErrorAction Stop
+
+        $result = [System.Collections.Generic.List[string]]::new()
+        Set-AahPipelineVariable -InputObject @(
+            @{
+                Name     = 'Var1'
+                isSecret = $false
+                isOutput = $true
+                Value    = 'Value1'
+            },
+            @{
+                Name     = 'Var2'
+                isSecret = $false
+                isOutput = $true
+                Value    = 'Value2'
+            },
+            @{
+                Name     = 'Var3'
+                isSecret = $false
+                isOutput = $true
+                Value    = 'Value3'
+            }
+        ) 6> 1 | foreach {
+            $result.add($_)
+        }
+
+        $result.Count | should -be 3
+    }
+}
