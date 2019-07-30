@@ -28,8 +28,8 @@ function Create-AdoePipelineDefinitionFile
         [PipelinePhase[]]$Phases,
 
         #Variables
-        [Parameter(Mandatory = $true)]
-        [Hashtable]$Variables,
+        [Parameter(Mandatory = $false)]
+        [Hashtable]$Variables = @{},
 
         #Repository
         [Parameter(Mandatory = $true)]

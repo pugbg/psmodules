@@ -12,7 +12,7 @@
 RootModule = 'AdoExtensions.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.1.1'
+ModuleVersion = '0.0.1.2'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,7 +93,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"61A4BFD25F771768C88025417CE877CA947F12AB5002251E0D88728E8CE1C1AA","HashAlgorithm":"SHA256","Version":"0.0.1.1"}'
+    VersionControl = '{"Hash":"BDAEFBF430BCA931B245FD860A9ED7FFFDF5BF9992AD5BB5A4EFC54B08F48239","HashAlgorithm":"SHA256","Version":"0.0.1.2"}'
 
     PSData = @{
 
