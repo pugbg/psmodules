@@ -1324,14 +1324,16 @@ function Build-PSScript
     {
         if ($ResolveDependancies.IsPresent)
         {
-            if (-not $PSBoundParameters.ContainsKey('DestinationPath'))
-            {
-                throw "DestinationPath Parameter should be used in combination with ResolveDependancies Parameter"
-            }
-
             if (-not $PSBoundParameters.ContainsKey('DependencyDestinationPath'))
             {
-                $DependencyDestinationPath = $DestinationPath
+                if ($PSBoundParameters.ContainsKey('DestinationPath'))
+                {
+                    $DependencyDestinationPath = $DestinationPath
+                }
+                else
+                {
+                    throw "Either 'DependencyDestinationPath' or 'DestinationPath' should be specified in combination with 'ResolveDependancies'"
+                }
             }
 
             #Add DependencyDestinationPath to Process PSModulePath
