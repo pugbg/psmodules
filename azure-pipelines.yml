@@ -46,12 +46,12 @@ stages:
             displayName: Prepare Pipeline Agent
             enabled: true
             inputs:
-              filePath: '$(System.ArtifactsDirectory)\pugbg.psmodules\psmodules\Prepare-PipelineAgent.ps1'
+              filePath: '$(System.ArtifactsDirectory)\psmodules\Prepare-PipelineAgent.ps1'
               pwsh: true
           - task: PowerShell@2
             displayName: PSPublish Modules
             enabled: true
             inputs:
-              filePath: '$(System.ArtifactsDirectory)\pugbg.psmodules\psmodules\Publish-PSSolution.ps1'
+              filePath: '$(System.ArtifactsDirectory)\psmodules\Publish-PSSolution.ps1'
               arguments: '-PSGalleryApiKey $(PSGalleryApiKey)'
               pwsh: true
