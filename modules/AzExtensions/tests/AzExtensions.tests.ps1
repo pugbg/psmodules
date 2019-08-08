@@ -1,3 +1,8 @@
+$TestEnvironemnt = @{
+    ApplicationId='5dfc81fc-ebbd-44de-a7af-ffa730d87b62'
+    ApplicationSecret=Get-AzKeyVaultSecret -VaultName 'psmodules-cicd' -Name 'psmodules-cicd' | select -ExpandProperty SecretValueText
+}
+
 describe 'AzeOAuthToken' {
 
     context "Using User" {
@@ -59,9 +64,7 @@ describe 'ResourceGroup' {
             ResourceGroupName  = 'test-AzeModuleGrp01'
             Location           = 'northeurope'
             oAuthToken         = $null
-            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
-            ApplicationSecret = $Env:ApplicationSecret
-        }
+        } + $TestEnvironemnt
 
         it "Initialize" {
             $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
@@ -95,9 +98,7 @@ describe 'ResourceGroup' {
             ResourceGroupName  = 'test-AzeModuleGrp02'
             Location           = 'northeurope'
             oAuthToken         = $null
-            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
-            ApplicationSecret = $Env:ApplicationSecret
-        }
+        } + $TestEnvironemnt
 
         it "Initialize" {
             $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
@@ -145,10 +146,8 @@ describe 'RoleAssignment' {
             ResourceGroupName  = 'test-AzeModuleGrp03'
             Location           = 'northeurope'
             oAuthToken         = $null
-            ApplicationId     = 'c7c60ad5-3f5a-417e-aadc-98ad3d95edc5'
-            ApplicationSecret = $Env:ApplicationSecret
             PrincipalId = '065920d4-336e-44e3-a44a-3b18aaf85041'
-        }
+        } + $TestEnvironemnt
 
         it "Initialize" {
             $ModuleRoot = Split-Path -Path $PSScriptRoot -Parent
