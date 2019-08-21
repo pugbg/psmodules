@@ -4,14 +4,18 @@ try
     Write-Information "Install RequiredModules started" -InformationAction Continue
     $RequiredModules = (
         @{
-            Name='PowerShellGet'
-            RequiredVersion='2.1.5'
+            Name            = 'PowerShellGet'
+            RequiredVersion = '2.1.5'
+        },
+        @{
+            Name            = 'PackageManagement'
+            RequiredVersion = '1.4.2'
         }
     )
     foreach ($mod in $RequiredModules)
     {
         Remove-Variable -Name ModuleCheck -ErrorAction SilentlyContinue
-        $ModuleCheck = Get-Module -FullyQualifiedName @{ModuleName=$mod.Name;RequiredVersion=$Mod.RequiredVersion} -ListAvailable -ErrorAction SilentlyContinue
+        $ModuleCheck = Get-Module -FullyQualifiedName @{ModuleName = $mod.Name; RequiredVersion = $Mod.RequiredVersion } -ListAvailable -ErrorAction SilentlyContinue
         if ($ModuleCheck)
         {
             Write-Information "Install RequiredModules in progress. Module: $($mod.Name)/$($mod.RequiredVersion) already installed" -InformationAction Continue
