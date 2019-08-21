@@ -363,6 +363,7 @@ function priv_Analyse-ItemDependancies
             PSGetRepository             = $PSGetRepository
             PSBuildDllPath              = [System.AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PSBuildEntities' } | select -ExpandProperty Location
             PSBuildModulePath = (Get-Module -Name psbuild).Path
+            AstExtensionsModulePath = (Get-Module -Name AstExtensions).Path
         }
         if ($PSBoundParameters.ContainsKey('Proxy'))
         {
@@ -397,6 +398,7 @@ function priv_Analyse-ItemDependancies
                 #Wait-Debugger
                 $JobParams = $Using:JobParams
                 Import-Module -FullyQualifiedName $JobParams["PSBuildModulePath"]
+                Import-Module -FullyQualifiedName $JobParams["AstExtensionsModulePath"]
                 Add-Type -Path $JobParams['PSBuildDllPath'] -ErrorAction Stop
                 $GlobalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::FromJson($JobParams['GlobalCommandAnalysisAsJson'])
                 $LocalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::New()

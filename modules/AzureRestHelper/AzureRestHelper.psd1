@@ -51,7 +51,7 @@ Description = 'Azure Resource Manager Rest calls helper functions'
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @(@{ModuleName = 'AzureRM.profile'; ModuleVersion = '5.8.3'; })
+RequiredModules = @(@{ModuleName = 'AzureRM.profile'; RequiredVersion = '5.8.3'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()

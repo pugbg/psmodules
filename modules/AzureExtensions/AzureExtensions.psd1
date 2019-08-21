@@ -51,7 +51,7 @@ Description = 'Additional cmdlets for managing various AzureRM Resources'
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @(@{ModuleName = 'AzureRM.Resources'; ModuleVersion = '6.7.3'; })
+RequiredModules = @(@{ModuleName = 'AzureRM.Resources'; RequiredVersion = '6.7.3'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()

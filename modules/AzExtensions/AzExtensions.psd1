@@ -51,7 +51,7 @@ Description = 'Additional cmdlets for managing various Az Resources'
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @(@{ModuleName = 'Az.Resources'; ModuleVersion = '1.6.0'; })
+RequiredModules = @(@{ModuleName = 'Az.Resources'; RequiredVersion = '1.6.0'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()

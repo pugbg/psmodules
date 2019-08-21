@@ -51,8 +51,8 @@ Description = 'AzureDevOps Pipeline Extension helper for PowerShell based Tasks 
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @(@{ModuleName = 'VstsTaskSdk'; ModuleVersion = '0.11.0'; }, 
-               @{ModuleName = 'Az.Accounts'; ModuleVersion = '1.5.3'; })
+RequiredModules = @(@{ModuleName = 'VstsTaskSdk'; RequiredVersion = '0.11.0'; }, 
+               @{ModuleName = 'Az.Accounts'; RequiredVersion = '1.5.3'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()

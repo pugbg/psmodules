@@ -1,4 +1,22 @@
 {
+    //PowerShell
+    "powershell.powerShellDefaultVersion": "PowerShell 6 Core (x64)",
+    "powershell.startAutomatically": true,
+    //PowerShell codeFormatting
+    "powershell.codeFormatting.openBraceOnSameLine": false,
+    "powershell.codeFormatting.ignoreOneLineBlock": false,
+    "powershell.codeFormatting.preset": "Allman",
+    //Git
+    "git.autofetch": true,
+    //Files
+    "files.defaultLanguage": "powershell",
+    "files.encoding": "utf8",
+    //Editor
+    "editor.foldingStrategy": "indentation",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveTimeout": 1000,
+    //Telemetry
+    "telemetry.enableTelemetry": false,
     "files.exclude": {
         "**/.git": true,
         "**/.svn": true,
@@ -6,10 +24,5 @@
         "**/CVS": true,
         "**/.DS_Store": true,
     },
-    //PowerShell main configuration
-    //"powershell.powerShellExePath": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
     "powershell.scriptAnalysis.enable": false,
-
-    //Terminal
-    //"terminal.integrated.shell.windows": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 }
