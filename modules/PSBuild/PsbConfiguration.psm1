@@ -1,4 +1,4 @@
-function Get-PSBRawConfiguration
+function Get-PsbRawConfiguration
 {
     [CmdletBinding()]
     param
@@ -10,8 +10,8 @@ function Get-PSBRawConfiguration
     
     begin
     {
-        $ConfigurationVariableInKey_Regex = "\[Variables\('(.*)'\)\]"
-        $ConfigurationVariableKey_Regex = "`"\[Variables\('(.*)'\)\]`""
+        $ConfigurationVariableInKey_Regex = "\[variable\('(.*)'\)\]"
+        $ConfigurationVariableKey_Regex = "`"\[variable\('(.*)'\)\]`""
     }
 
     process
@@ -25,7 +25,7 @@ function Get-PSBRawConfiguration
         #Initialize Configuration Variables
         try
         {
-            $ConfigurationRaw = Get-Content -Path $FilePath -raw -ErrorAction Stop
+            $ConfigurationRaw = Get-Content -Path $Path -raw -ErrorAction Stop
             $Configuration = $ConfigurationRaw | ConvertFrom-Json -ErrorAction Stop
             foreach ($Var in $Configuration.Variables.psobject.Properties)
             {
@@ -88,7 +88,7 @@ function Get-PSBRawConfiguration
     }
 }
 
-function Get-PSBConfiguration
+function Get-PsbConfiguration
 {
     [CmdletBinding()]
     param
@@ -113,8 +113,8 @@ function Get-PSBConfiguration
         #Get RawConfiguration
         try
         {
-            $RawConfiguration = Get-PSBRawConfiguration -Path $Path -ErrorAction Stop
-            [PSBConfiguration]$RawConfiguration
+            $RawConfiguration = Get-PsbRawConfiguration -Path $Path -ErrorAction Stop
+            [PsbConfiguration]$RawConfiguration
         }
         catch
         {
@@ -126,17 +126,23 @@ function Get-PSBConfiguration
 
 #region Classes
 
-class PSBConfiguration
+class PsbConfiguration
+{
+    [psobject]$variables
+    [PsbGlobalConfiguration]$globalSettings
+    [System.Collections.Generic.List[PsbItemConfiguration]]$itemGroup = ([System.Collections.Generic.List[PsbItemConfiguration]]::new())
+}
+
+class PsbGlobalConfiguration
 {
     [string]$DependencyPath
     [string]$OutputPath
-    [PSBCommandConfiguration]$CommandSettings
-    [PSBCommandReferenceConfiguration]$CommandReferenceSettings
-    [PSBDependencyConfiguration]$DependencySettings
-
+    [PsbCommandConfiguration]$CommandSettings
+    [PsbCommandReferenceConfiguration]$CommandReferenceSettings
+    [PsbDependencyConfiguration]$DependencySettings
 }
 
-class PSBItemConfiguration : PSBConfiguration
+class PsbItemConfiguration : PsbGlobalConfiguration
 {
     [String]$Name
     [ValidateSet('Scripts', 'Modules')]
@@ -144,13 +150,13 @@ class PSBItemConfiguration : PSBConfiguration
     [System.Collections.Generic.List[string]]$SourcePath = ([System.Collections.Generic.List[string]]::new())
 }
 
-class PSBCommandConfiguration
+class PsbCommandConfiguration
 {
     [ValidateSet('Enabled', 'Notify', 'Disabled')]
     [string]$CheckForDuplicateNames
 }
 
-class PSBCommandReferenceConfiguration
+class PsbCommandReferenceConfiguration
 {
     [ValidateSet('Required', 'NotifyIfMissing', 'NotRequired')]
     [string]$Mode = 'Notify'
@@ -158,10 +164,10 @@ class PSBCommandReferenceConfiguration
     [System.Collections.Generic.List[string]]$ExcludedCommands = ([System.Collections.Generic.List[string]]::new())
 }
 
-class PSBDependencyConfiguration
+class PsbDependencyConfiguration
 {
     [ValidateSet('Resolve', 'DoNotResolve')]
-    [bool]$Mode = 'Resolve'
+    [string]$Mode = 'Resolve'
     [bool]$UpdateToLatestVersion = $false
 }
 

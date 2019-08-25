@@ -1,0 +1,15 @@
+{
+    "variables": {
+        "Var1": 1,
+        "Var2": "TestValue2",
+        "Var3": true
+    },
+    "globalSettings": {
+        "OutputPath": "c:\\SomeFolder\\[variable('Var2')]",
+        "DependencyPath": "c:\\SomeFolder\\[variable('Var1')]",
+        "DependencySettings": {
+            "UpdateToLatestVersion": "[variable('Var3')]"
+        }
+    },
+    "itemGroup": []
+}

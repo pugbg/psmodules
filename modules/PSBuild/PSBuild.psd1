@@ -9,10 +9,10 @@
 @{
 
     # Script module or binary module file associated with this manifest.
-    RootModule         = 'PSBuild.psm1'
+    # RootModule         = ''
 
     # Version number of this module.
-    ModuleVersion      = '1.0.1.124'
+    ModuleVersion      = '2.0.0.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -54,7 +54,7 @@
     RequiredModules    = @()
 
     # Assemblies that must be loaded prior to importing this module
-    RequiredAssemblies = ''
+    RequiredAssemblies = @()
 
     # Script files (.ps1) that are run in the caller's environment prior to importing this module.
     # ScriptsToProcess = @()
@@ -66,10 +66,12 @@
     # FormatsToProcess = @()
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-    # NestedModules = @()
+    NestedModules      = @(
+        'PsbConfiguration.psm1'
+    )
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-    FunctionsToExport  = 'Get-PSBConfiguration'
+    FunctionsToExport  = 'Get-PsbConfiguration'
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
     CmdletsToExport    = @()
@@ -92,10 +94,7 @@
     # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
     PrivateData        = @{
 
-        #VersionControl of this module
-        VersionControl = '{"Hash":"96219DEA22919EBF76D247FA0F423283A67A0B1C01C156F2B10EB65776986AFE","HashAlgorithm":"SHA256","Version":"1.0.1.124"}'
-
-        PSData         = @{
+        PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
             # Tags = @()
@@ -119,7 +118,7 @@
             # RequireLicenseAcceptance = $false
 
             # External dependent modules of this module
-            ExternalModuleDependencies = @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Utility')
+            # ExternalModuleDependencies = @()
 
         } # End of PSData hashtable
 
