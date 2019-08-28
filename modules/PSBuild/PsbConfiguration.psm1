@@ -148,6 +148,8 @@ class PsbItemConfiguration : PsbGlobalConfiguration
     [ValidateSet('Scripts', 'Modules')]
     [string]$Type
     [System.Collections.Generic.List[string]]$SourcePath = ([System.Collections.Generic.List[string]]::new())
+    [ValidateSet('Base', 'OneLevel', 'Recurse')]
+    [string]$SourceScope = 'OneLevel'
 }
 
 class PsbCommandConfiguration
