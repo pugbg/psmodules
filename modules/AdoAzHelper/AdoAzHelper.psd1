@@ -12,7 +12,7 @@
 RootModule = 'AdoAzHelper.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.1.10'
+ModuleVersion = '0.0.1.12'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -52,7 +52,7 @@ Description = 'AzureDevOps Pipeline Extension helper for PowerShell based Tasks 
 
 # Modules that must be imported into the global environment prior to importing this module
 RequiredModules = @(@{ModuleName = 'VstsTaskSdk'; RequiredVersion = '0.11.0'; }, 
-               @{ModuleName = 'Az.Accounts'; RequiredVersion = '1.6.1'; })
+               @{ModuleName = 'Az.Accounts'; RequiredVersion = '1.6.2'; })
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
@@ -95,7 +95,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"3E468E88E029EB92951221CD5964E2B7CAA64AE2BF1CA66A3651F9880031C77F","HashAlgorithm":"SHA256","Version":"0.0.1.10"}'
+    VersionControl = '{"Hash":"3E468E88E029EB92951221CD5964E2B7CAA64AE2BF1CA66A3651F9880031C77F","HashAlgorithm":"SHA256","Version":"0.0.1.12"}'
 
     PSData = @{
 
