@@ -29,7 +29,11 @@ function Create-AdoePipelineDefinitionFile
 
         #Variables
         [Parameter(Mandatory = $false)]
-        [Hashtable]$Variables = @{},
+        [Hashtable]$Variables = @{ },
+
+        #Variable Groups
+        [Parameter(Mandatory = $false)]
+        [VariableGroup]$VariableGroups,
 
         #Repository
         [Parameter(Mandatory = $true)]
@@ -40,16 +44,17 @@ function Create-AdoePipelineDefinitionFile
     {
 
         $PipelineDefinition = @{
-            variables  = $Variables
-            process    = @{
+            variablegroups = $VariableGroups
+            variables      = $Variables
+            process        = @{
                 phases = $Phases
                 type   = 1
             }
-            queue      = $Queue
-            repository = $Repository
-            name       = $Name
-            path       = $Path
-            project    = $Project
+            queue          = $Queue
+            repository     = $Repository
+            name           = $Name
+            path           = $Path
+            project        = $Project
         }
 
         #Export Definition
@@ -92,7 +97,7 @@ class PipelineStep
     [bool]$enabled
     [string]$displayName
     [PipelineTask]$task
-    [hashtable]$Inputs = @{}
+    [hashtable]$Inputs = @{ }
 }
 
 class PipelineTask
@@ -100,6 +105,12 @@ class PipelineTask
     [string]$id
     [string]$versionSpec
     [string]$definitionType = 'task'
+}
+
+class VariableGroup
+{
+    [int]$id
+    [string]$type
 }
 
 #endregion
