@@ -90,6 +90,12 @@ class PipelinePhase
     [string]$Name
     [string]$RefName
     [string]$condition = "succeeded()"
+    [Target]$target
+}
+
+class Target
+{
+    [string[]]$demands
 }
 
 class PipelineStep
