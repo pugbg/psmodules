@@ -33,7 +33,7 @@ function Create-AdoePipelineDefinitionFile
 
         #Variable Groups
         [Parameter(Mandatory = $false)]
-        [VariableGroup]$VariableGroups,
+        [VariableGroup[]]$VariableGroups = @(),
 
         #Repository
         [Parameter(Mandatory = $true)]
@@ -117,6 +117,7 @@ class VariableGroup
 {
     [int]$id
     [string]$type
+    [string]$type = 'vsts'
 }
 
 #endregion
