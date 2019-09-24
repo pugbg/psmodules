@@ -96,6 +96,7 @@ class PipelinePhase
 class Target
 {
     [string[]]$demands
+    [int]$type = 1
 }
 
 class PipelineStep
@@ -116,7 +117,6 @@ class PipelineTask
 class VariableGroup
 {
     [int]$id
-    [string]$type
     [string]$type = 'vsts'
 }
 
