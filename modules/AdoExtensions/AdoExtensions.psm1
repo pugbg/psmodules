@@ -90,6 +90,12 @@ class PipelinePhase
     [string]$Name
     [string]$RefName
     [string]$condition = "succeeded()"
+    [Target]$target
+}
+
+class Target
+{
+    [string[]]$demands
 }
 
 class PipelineStep
@@ -110,6 +116,7 @@ class PipelineTask
 class VariableGroup
 {
     [int]$id
+    [string]$type
     [string]$type = 'vsts'
 }
 
