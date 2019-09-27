@@ -362,8 +362,8 @@ function priv_Analyse-ItemDependancies
             CurrentDependancies         = $CurrentDependancies
             PSGetRepository             = $PSGetRepository
             PSBuildDllPath              = [System.AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PSBuildEntities' } | select -ExpandProperty Location
-            PSBuildModulePath = (Get-Module -Name psbuild).Path
-            AstExtensionsModulePath = (Get-Module -Name AstExtensions).Path
+            PSBuildModulePath           = (Get-Module -Name psbuild).Path
+            AstExtensionsModulePath     = (Get-Module -Name AstExtensions).Path
         }
         if ($PSBoundParameters.ContainsKey('Proxy'))
         {
@@ -1532,9 +1532,11 @@ function Build-PSScript
                     {
                         $depModuleName = $DepModule.Name
                         $depModuleVersion = $DepModule.Version
+                        $depModuleIdentifier = "$($DepModule.Name)/$($DepModule.Version)"
                         if ($DependencyDestinationPath)
                         {
                             $DepModuleDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName -ErrorAction Stop
+                            $DepModuleVersionDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName | Join-Path -ChildPath $depModuleVersion -ErrorAction Stop
                         }
 
                         #Check if DepModule is marked as ExternalModuleDependency
@@ -1559,7 +1561,7 @@ function Build-PSScript
                             foreach ($item in $PSGetRepository)
                             {
                                 #Search for module
-                                if (-not $PsGetModuleValidationCache.Value.ContainsKey($depModuleName))
+                                if (-not $PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier))
                                 {
                                     $PSGet_Params = @{
                                         Name       = $depModuleName
@@ -1608,17 +1610,24 @@ function Build-PSScript
                                 }
                             }
                             #Get Latest Version if multiple are present
-                            if ($NugetDependencyList)
+                            if ($NugetDependencyList.Count -gt 0)
                             {
                                 Remove-Variable -Name NugetDepToADD -ErrorAction SilentlyContinue
                                 $NugetDepToADD = $NugetDependencyList | Sort-Object -Property Version -Descending | Sort-Object -Property PSGetRepoPriority | select -First 1
-                                $null = $PsGetModuleValidationCache.Value.Add($depModuleName, $NugetDepToADD)
+                                $null = $PsGetModuleValidationCache.Value.Add($depModuleIdentifier, $NugetDepToADD)
                             }
-								
-                            #Check if DepModule ref version is the latest
-                            if ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName) -and ($PsGetModuleValidationCache.Value[$depModuleName].Version -gt $depModuleVersion))
+                                
+                            #Check if DepModule version is downloaded
+                            if (-not (test-path -Path $DepModuleVersionDestinationPath))
                             {
-                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleName/$depModuleVersion is not the latest version"
+                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleIdentifier is not resolved"
+                                $ScriptDependanciesValid = $false
+                            }
+
+                            #Check if DepModule ref version is the latest
+                            if ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier) -and ($PsGetModuleValidationCache.Value[$depModuleIdentifier].Version -gt $depModuleVersion))
+                            {
+                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleIdentifier is not the latest version"
                                 if ($UpdateModuleReferences.IsPresent)
                                 {
                                     $ScriptDependanciesValid = $false
@@ -1675,7 +1684,7 @@ function Build-PSScript
                             {
                                 $dependantModuleName = $ModDependency.Name
                                 $dependantModuleVersion = $ModDependency.Version
-
+                                $depModuleIdentifier = "$($ModDependency.Name)/$($ModDependency.Version)"
                                 Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion started"
                                 $ModDependencyFound = $false
                                 #Search for module in the Solution
@@ -1696,9 +1705,9 @@ function Build-PSScript
                                 }
 
                                 #Search for module in Solution PSGetRepositories
-                                if ((-not $ModDependencyFound) -and ($PsGetModuleValidationCache.Value.ContainsKey($dependantModuleName)) -and ($PSBoundParameters.ContainsKey('PSGetRepository')))
+                                if ((-not $ModDependencyFound) -and ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier)) -and ($PSBoundParameters.ContainsKey('PSGetRepository')))
                                 {
-                                    $NuGetDependancyHandle = $PsGetModuleValidationCache.Value[$dependantModuleName]
+                                    $NuGetDependancyHandle = $PsGetModuleValidationCache.Value[$depModuleIdentifier]
                                     #Check if NugetPackage is already downloaded
                                     try
                                     {
@@ -1766,7 +1775,7 @@ function Build-PSScript
                     try
                     {
                         #Update Script Dependancies definition
-                        if (-not $ScriptDependanciesValid)
+                        if ((-not $ScriptDependanciesValid) -and ($UpdateModuleReferences.IsPresent))
                         {
                             Write-Warning "Build Script: $scriptName/$scriptVersion in progress. RequiredModules specification not valid, updating it..."
 
@@ -1778,9 +1787,9 @@ function Build-PSScript
                                 {
                                     $DepModule.Version = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version
                                 }
-                                elseif ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName))
+                                elseif ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier))
                                 {
-                                    $DepModule.Version = $PsGetModuleValidationCache.Value[$depModuleName].Version
+                                    $DepModule.Version = $PsGetModuleValidationCache.Value[$depModuleIdentifier].Version
                                 }
                             }
                             if (($ScriptRequiredModules_All | measure-object).Count -gt 0)
