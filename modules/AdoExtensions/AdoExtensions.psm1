@@ -91,6 +91,7 @@ class PipelinePhase
     [string]$RefName
     [string]$condition = "succeeded()"
     [Target]$target
+    [int]$jobTimeoutInMinutes = 0
 }
 
 class Target
