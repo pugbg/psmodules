@@ -12,7 +12,7 @@
 RootModule = 'HtmlHelper.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0.1'
+ModuleVersion = '1.0.0.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,7 +93,7 @@ AliasesToExport = @()
 PrivateData = @{
 
     #VersionControl of this module
-    VersionControl = '{"Hash":"B16E1FA7AB1B003F3C207736C6506F84DE24B0EF1C1C12FC5E74FBA00949FA3B","HashAlgorithm":"SHA256","Version":"1.0.0.1"}'
+    VersionControl = '{"Hash":"B16E1FA7AB1B003F3C207736C6506F84DE24B0EF1C1C12FC5E74FBA00949FA3B","HashAlgorithm":"SHA256","Version":"1.0.0.3"}'
 
     PSData = @{
 
@@ -104,7 +104,7 @@ PrivateData = @{
         # LicenseUri = ''
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        ProjectUri = 'https://github.com/pugbg/psmodules/tree/master/modules/HtmlHelper'
 
         # A URL to an icon representing this module.
         # IconUri = ''
