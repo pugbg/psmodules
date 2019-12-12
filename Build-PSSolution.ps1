@@ -22,7 +22,7 @@ try
 }
 catch
 {
-    throw "Import RequiredModules from this project failed. Details: $_"
+    throw "Import RequiredModules from this project failed. Details: $([System.Environment]::NewLine)$($_ | convertto-json -Depth 5)"
 }
 
 Build-PSSolution -SolutionConfigPath "$PSScriptRoot\buildconfig.psd1" -Verbose -ErrorAction Stop
