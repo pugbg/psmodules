@@ -4,12 +4,19 @@ try
     Write-Information "Import RequiredModules from this project started" -InformationAction Continue
 
     $ModulesFolder = "$PSScriptRoot\modules"
+    $RequiredModules = @(
+        'AstExtensions'
+        'SystemExtensions'
+        'TypeHelper'
+        'PSHelper'
+        'PSBuild'
+    )
+    foreach ($rm in $RequiredModules)
+    {
+        Write-Information "Import RequiredModules from this project im progress. Importing: '$rm'" -InformationAction Continue
+        Import-Module -FullyQualifiedName "$ModulesFolder\$rm" -Force -ErrorAction Stop
 
-    Import-Module -FullyQualifiedName "$ModulesFolder\AstExtensions" -Force -ErrorAction Stop
-    Import-Module -FullyQualifiedName "$ModulesFolder\SystemExtensions" -Force -ErrorAction Stop
-    Import-Module -FullyQualifiedName "$ModulesFolder\TypeHelper" -Force -ErrorAction Stop
-    Import-Module -FullyQualifiedName "$ModulesFolder\PSHelper" -Force -ErrorAction Stop
-    Import-Module -FullyQualifiedName "$ModulesFolder\PSBuild" -Force -ErrorAction Stop
+    }
 
     Write-Information "Import RequiredModules from this project completed" -InformationAction Continue
 }
