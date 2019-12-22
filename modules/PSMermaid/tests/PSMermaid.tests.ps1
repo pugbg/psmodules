@@ -35,21 +35,24 @@ describe "m-graph" {
 
         it "should return string" {
             $result = m-graph -Orientation TB -classDef @{edgePath = 'stroke-width:0px' } -Body {
-                m-subgraph -Id p -Name Platform -Body {
+                m-subgraph -Id p -Attributes @{Name = 'Platform'; style = 'fill:#ccf' } -Body {
                     m-node -Id p1 -Attributes @{
                         Name               = 'Platform1'
                         InteractionLink    = 'https://google.bg'
                         InteractionTooltip = 'This is google'
+                        Style              = 'fill:#F4BBFF'
                     }
                     m-node -Id p2 -Attributes @{
                         Name            = 'Platform2'
                         InteractionLink = 'https://abv.bg'
+                        Style           = 'fill:#F4BBFF'
                     }
                     m-node -Id p3 -Attributes @{
-                        Name = 'Platform3'
+                        Name  = 'Platform3'
+                        Style = 'fill:#F4BBFF'
                     }
                 }
-                m-subgraph -Id m -Name Mandatory -Body {
+                m-subgraph -Id m -Attributes @{Name = 'Mandatory' } -Body {
                     m-node -Id m1 -Attributes @{
                         Name   = 'Mandatory1'
                         LinkTo = 'p1'
@@ -59,7 +62,7 @@ describe "m-graph" {
                         LinkTo = 'p1'
                     }
                 }
-                m-subgraph -Id o -Name Optional -Body {
+                m-subgraph -Id o -Attributes @{Name = 'Optional' } -Body {
                     m-node -Id o1 -Attributes @{
                         Name   = 'Optional1'
                         LinkTo = 'p1'
@@ -69,7 +72,6 @@ describe "m-graph" {
                         LinkTo = 'p1'
                     }
                 }
-
             } 
     
             $result | should -BeOfType 'String'

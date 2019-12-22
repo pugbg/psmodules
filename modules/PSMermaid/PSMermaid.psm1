@@ -20,6 +20,7 @@ function m-graph
     begin
     {
         $graphInteractions = [System.Collections.Generic.List[string]]::new()
+        $graphStyles = [System.Collections.Generic.List[string]]::new()
     }
 
     process
@@ -41,7 +42,13 @@ function m-graph
                 $null = $Result.AppendLine($_)
             }
         }
-        
+        if ($graphStyles.Count -gt 0)
+        {
+            $graphStyles | foreach {
+                $null = $Result.AppendLine($_)
+            }
+        }
+
         $Result.ToString()
     }
 }
@@ -55,9 +62,20 @@ function m-subgraph
         [Parameter(Mandatory = $true, Position = 0)]
         [string]$Id,
 
-        #Name
+        #Attributes
         [Parameter(Mandatory = $false, Position = 1)]
-        [string]$Name,
+        [ValidateScript( {
+                $SupportedAttributs = @('Name', 'Style')
+                foreach ($attr in $_.keys)
+                {
+                    if ($attr -notin $SupportedAttributs)
+                    {
+                        throw "Attribute: '$attr' not supported. Supported attributes: $($SupportedAttributs -join ', ')"
+                    }
+                }
+                $true
+            })]
+        [hashtable]$Attributes = @{ },
 
         #Body
         [Parameter(Mandatory = $true, Position = 2)]
@@ -68,9 +86,9 @@ function m-subgraph
     {
         #Build Result
         $Result = New-Object -TypeName System.Text.StringBuilder -ErrorAction Stop
-        if ($PSBoundParameters.ContainsKey('Name'))
+        if ($Attributes.ContainsKey('Name'))
         {
-            $null = $Result.AppendLine("subgraph $Id[$Name]")
+            $null = $Result.AppendLine("subgraph $Id[$($Attributes['Name'])]")
         }
         else
         {
@@ -80,6 +98,12 @@ function m-subgraph
         $null = $Result.AppendLine("end")
         
         $Result.ToString()
+
+        #Handle Style
+        if ($Attributes.ContainsKey('Style'))
+        {
+            $graphStyles.add("style $Id $($Attributes['Style'])")
+        }
     }
 }
 
@@ -93,9 +117,9 @@ function m-node
         [string]$Id,
 
         #Attributes
-        [Parameter(Mandatory = $false, Position = 0)]
+        [Parameter(Mandatory = $false, Position = 1)]
         [ValidateScript( {
-                $SupportedAttributs = @('Name', 'Shape', 'LinkTo', 'LinkType', 'LinkText', 'InteractionLink', 'InteractionTooltip')
+                $SupportedAttributs = @('Name', 'Shape', 'LinkTo', 'LinkType', 'LinkText', 'InteractionLink', 'InteractionTooltip', 'Style')
                 foreach ($attr in $_.keys)
                 {
                     if ($attr -notin $SupportedAttributs)
@@ -164,7 +188,7 @@ function m-node
             $null = $Result.Append($LinkTypeDefinition[$Attributes['LinkType']])
             if ($Attributes.ContainsKey('LinkText'))
             {
-                $null = $Result.Append("|$($Attributes['LinkText'])|")
+                $null = $Result.Append(" | $($Attributes['LinkText']) | ")
             }
             if ($Attributes['LinkTo'].count -gt 0)
             {
@@ -195,6 +219,12 @@ function m-node
             {
                 $graphInteractions.add("click $Id `"$($Attributes['InteractionLink'])`"")
             }
+        }
+
+        #Handle Style
+        if ($Attributes.ContainsKey('Style'))
+        {
+            $graphStyles.add("style $Id $($Attributes['Style'])")
         }
     }
 }
