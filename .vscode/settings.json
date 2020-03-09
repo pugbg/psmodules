@@ -1,20 +1,26 @@
 {
     //PowerShell
-    "powershell.powerShellDefaultVersion": "PowerShell 6 Core (x64)",
     "powershell.startAutomatically": true,
     //PowerShell codeFormatting
+    "powershell.codeFormatting.preset": "OTBS",
+    "powershell.codeFormatting.useCorrectCasing": true,
+    "powershell.codeFormatting.alignPropertyValuePairs": true,
+    "powershell.codeFormatting.whitespaceInsideBrace": true,
+    "powershell.codeFormatting.whitespaceBeforeOpenParen": true,
+    "powershell.codeFormatting.whitespaceBeforeOpenBrace": true,
+    "powershell.codeFormatting.whitespaceAroundPipe": true,
+    "powershell.codeFormatting.whitespaceAroundOperator": true,
+    "powershell.codeFormatting.whitespaceAfterSeparator": true,
     "powershell.codeFormatting.openBraceOnSameLine": false,
     "powershell.codeFormatting.ignoreOneLineBlock": false,
-    "powershell.codeFormatting.preset": "Allman",
     //Git
     "git.autofetch": true,
     //Files
-    "files.defaultLanguage": "powershell",
     "files.encoding": "utf8",
     //Editor
-    "editor.foldingStrategy": "indentation",
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
     "editor.formatOnSave": true,
-    "editor.formatOnSaveTimeout": 1000,
     //Telemetry
     "telemetry.enableTelemetry": false,
     "files.exclude": {
