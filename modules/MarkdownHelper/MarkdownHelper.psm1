@@ -1,146 +1,53 @@
-function Get-CNMarkdownTable {
-
-  [CmdletBinding()]
-  [Outputtype([System.Collections.Generic.List[Markdig.Extensions.Tables.Table]])]
+function Get-MhDocument
+{
+  [cmdletBinding()]
+  [OutputType([Markdig.Syntax.MarkdownDocument])]
   param
   (
     [Parameter(Mandatory)]
-    [System.IO.FileInfo] $FilePath,
+    [System.IO.FileInfo]$FilePath,
 
     [Parameter()]
-    [string[]] $TableHeader
+    [string[]]$Extension
   )
 
-  $markdown = ConvertFrom-Markdown -Path $FilePath.FullName
-  $tables = [System.Collections.Generic.List[Markdig.Extensions.Tables.Table]]::new()
-  $markdown.Tokens | ForEach-Object -Process {
-    if ($_ -is [Markdig.Extensions.Tables.Table]) {
-      if ($PSBoundParameters.ContainsKey('TableHeader')) {
-        $headerStrings = $_[0] | ForEach-Object { $_.Inline.ToString() }
-        $desiredTable = $true
-        foreach ($th in $TableHeader) {
-          if ($th -notin $headerStrings) {
-            $desiredTable = $false
-          }
-        }
-        if ($desiredTable) {
-          $tables.Add($_)
-        }
-      } else {
-        $table.add($_)
-      }
+  process
+  {
+    $fileContent = Get-Content -Path $FilePath -Raw
+    $pipeline = [Markdig.MarkdownPipelineBuilder]::new()
+    if ($PSBoundParameters.ContainsKey('Extension'))
+    {
+      $pipeline = [Markdig.MarkDownExtensions]::Configure($pipeline,($Extension -join '+'))
     }
-  }
-
-  #return tables
-  $PSCmdlet.WriteObject($tables, $false)
-}
-  
-function Get-CNMarkdownTableItem {
-  
-  [CmdletBinding(DefaultParameterSetName = 'ByTable')]
-  param
-  (
-    [Parameter(Mandatory, ParameterSetName = 'ByFile')]
-    [System.IO.FileInfo] $FilePath,
-
-    [Parameter(Mandatory, ParameterSetName = 'ByFile')]
-    [string[]] $TableHeader,
-
-    [Parameter(Mandatory, ValueFromPipeline, ParameterSetName = 'ByTable')]
-    [Markdig.Extensions.Tables.Table] $MarkdownTable,
-
-    [Parameter()]
-    [switch]$IncludeHeaders,
-
-    [Parameter()]
-    [int[]] $Row,
-
-    [Parameter()]
-    [int[]] $Column
-  )
-
-  if ($PSCmdlet.ParameterSetName -eq 'ByFile') {
-    $table = Get-CNMarkdownTable -FilePath $FilePath -TableHeader $TableHeader
-  } else {
-    $table = $MarkdownTable
-  }
-
-  #Get items
-  if ($table) {
-    if ($IncludeHeaders.IsPresent) {
-      $tableBody = $table
-    } else {
-      $tableBody = $table | Select-Object -Skip 1
-    }
-
-    if ($PSBoundParameters.ContainsKey('Row')) {
-      $tableBody = $tableBody[$row]
-    }
-    if ($PSBoundParameters.ContainsKey('Column')) {
-      $tableBody | ForEach-Object -Process { $_[$Column] }
-    } else {
-      $tableBody
-    }
-
-  } else {
-    throw "Table with headers: '$($TableHeader -join ', ')' not found"
+    $result = [Markdig.Parsers.MarkdownParser]::Parse($fileContent,$pipeline.Build())
+    $PSCmdlet.WriteObject($result,$false)
   }
 }
-  
-function Add-CNMarkdownTableRow {
-  
-  [CmdletBinding()]
+
+function Get-MhElement
+{
+  [cmdletBinding()]
   param
   (
     [Parameter(Mandatory)]
-    [System.IO.FileInfo] $FilePath,
+    [Markdig.Syntax.MarkdownDocument]$Document,
 
     [Parameter(Mandatory)]
-    [string[]] $TableHeader,
-
-    [Parameter(Mandatory)]
-    [string[]] $Column,
-
-    [Parameter()]
-    [int] $Index = 0,
-
-    [Parameter()]
-    [switch] $Force
+    [string]$TypeName
   )
 
-  $table = Get-CNMarkdownTable -FilePath $FilePath -TableHeader $TableHeader
-
-  #Update table
-  if ($table) {
-    #get table headers
-    $existingTableHeaders = $table[0] | ForEach-Object -Process { $_.Inline.ToString() }
-
-    #calculate row columns
-    if ($Column.Count -ne $existingTableHeaders.Count) {
-      if ($Force.IsPresent) {
-        $columnDif = $existingTableHeaders.Count - $Column.Count
-        for ($i = 0; $i -lt $columnDif; $i++) {
-          $Column += ''
-        }
-      } else {
-        throw "Inserting row with: $($Column.Count) columns in table with $($existingTableHeaders.Count) columns not allowed. Use -Force to override"
-      }
+  process
+  {
+    #Check Type
+    $type = $TypeName -as [Type]
+    if (-not $type)
+    {
+      throw "Type: '$TypeName' not found"
     }
 
-    #append on specific line
-    $fileContent = [System.Collections.Generic.List[string]]::new()
-    Get-Content -Path $FilePath | ForEach-Object -Process {
-      $fileContent.Add($_)
-    }
-    if ($Index -ge 0) {
-      $fileLineToInsert = $table[0].Line + 2 + $Index
-    } else {
-      $fileLineToInsert = $table[-1].Line + 2 + $Index
-    }
-    $fileContent.Insert($fileLineToInsert, ($Column -join ' |'))
-    $fileContent | Out-File -FilePath $FilePath
-  } else {
-    throw "Table with headers: '$($TableHeader -join ', ')' not found"
+    $mdExtensionsType = [Markdig.Syntax.MarkdownObjectExtensions]
+    $methodDescendants = [Markdig.Syntax.MarkdownObjectExtensions].GetMethod('Descendants',1,[Markdig.Syntax.MarkdownObject])
+    $method = $methodDescendants.MakeGenericMethod($Type)
+    $method.Invoke($mdExtensionsType,@(,$Document)) | ForEach-Object {$PSCmdlet.WriteObject($_,$false)}
   }
 }
