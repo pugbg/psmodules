@@ -81,6 +81,7 @@ function Add-PSModulePathEntry
    
     Process
     {
+        $VerbosePreference = 'SilentlyContinue'
         $Scope | foreach {
 
             #Get Current Entries
@@ -141,6 +142,7 @@ function Set-PSModulePath
 
     Process
     {
+        $VerbosePreference = 'SilentlyContinue'
         $Scope | foreach {
             $CurPsModulePathArr = New-Object System.Collections.ArrayList
             foreach ($Item in $Path)
@@ -178,6 +180,7 @@ function Get-PSModulePath
     
     Process
     {
+        $VerbosePreference = 'SilentlyContinue'
         $Scope | foreach { [System.Environment]::GetEnvironmentVariable('PsModulePath', $_) -split ';' }
     }
 }
@@ -199,6 +202,7 @@ function Remove-PSModulePathEntry
 
     Process
     {
+        $VerbosePreference = 'SilentlyContinue'
         $Scope | foreach {
 
             #Get Current Entries
@@ -237,104 +241,102 @@ function Test-PSModule
     param
     (
         #ModulePath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
-        [System.IO.DirectoryInfo[]]$ModulePath
-    )
+        [Parameter(Mandatory = $true)]
+        [System.IO.DirectoryInfo[]]$ModulePath,
+
+        #Version
+        [Parameter(Mandatory = $false)]
+        [Version]$Version
+        )
     
+    Begin
+    {
+        $oldVerbosePref = $VerbosePreference
+        $VerbosePreference = 'SilentlyContinue'
+    }
+
     Process
     {
         foreach ($Item in $ModulePath)
         {
             $ModuleValidation = [PSModuleValidation]::new()
 
-            #Resolve Module Definition File
             try
             {
-                Write-Verbose "Resolve Module Definition File started"
+                #Resolve Module Definition File
+                Write-Information -MessageData "[$($item.Name)] Validating Module"
 			
                 $ModuleDefinitionFileName = $Item.Name + '.psd1'
                 $ModuleDefinitionFile = Get-ChildItem -Path $item.FullName -Recurse -filter $ModuleDefinitionFileName -ErrorAction Stop -File
-                if (-not $ModuleDefinitionFile)
+                
+                if($ModuleDefinitionFile)
                 {
-                    throw "$ModuleDefinitionFileName not found"
+                    Write-Debug -Message "[$($ModuleDefinitionFile.Name)] Resolving ModuleInfo"
+                    $ModuleInfoAllVersions = Get-Module -ListAvailable -FullyQualifiedName $ModuleDefinitionFile.FullName -Refresh -ErrorAction Stop -Verbose:$false
+                    if($PSBoundParameters.ContainsKey("Version"))
+                    {
+                        $ModuleInfo = $ModuleInfoAllVersions | Where-Object { $_.Version -eq $Version }
+                    }
+                    else
+                    {
+                        $ModuleInfo = $ModuleInfoAllVersions | Sort-Object -Property Version | Select-Object -Last 1
+                    }
+
+                    if ($ModuleInfo)
+                    {
+                        $ModuleValidation.IsModule = $true
+                        $ModuleValidation.ModuleInfo = $ModuleInfo
+                        $ModuleValidation.IsReadyForPackaging = ((-not [String]::IsNullOrWhiteSpace($ModuleValidation.ModuleInfo.Author)) -and (-not [String]::IsNullOrWhiteSpace($ModuleValidation.ModuleInfo.Description)))
+
+                        Write-Debug -Message "[$($ModuleInfo.Name)] Analyzing Version Control"
+                        
+                        $ModulePsd = $null
+                        $VersionControl = $null
+                        $CurrentHash = $null
+
+                        $ModulePsd = Import-PSDataFile -FilePath $ModuleValidation.ModuleInfo.Path -ErrorAction SilentlyContinue
+                        $VersionControl = $ModulePsd.PrivateData.VersionControl | ConvertFrom-Json -ErrorAction SilentlyContinue
+
+                        if ($VersionControl)
+                        {
+                            $ModuleValidation.SupportVersonControl = $true
+
+                            $GetFileHash_Params = @{
+                                Path = ([IO.Path]::Combine(($ModuleValidation.ModuleInfo.ModuleBase), ($ModuleValidation.ModuleInfo.RootModule)))
+                            }
+                            if ($VersionControl.HashAlgorithm) { $GetFileHash_Params.Add('Algorithm', $VersionControl.HashAlgorithm) }
+                            $CurrentHash = Get-FileHash @GetFileHash_Params
+
+
+                            if ($VersionControl.Version -eq $ModuleValidation.ModuleInfo.Version)
+                            {
+                                if ($VersionControl.Hash -eq $CurrentHash.Hash)
+                                {
+                                    $ModuleValidation.IsVersionValid = $true
+                                }
+                                else
+                                {
+                                    $ModuleValidation.IsNewVersion = $true
+                                }
+                            }
+                        }
+
+                        Write-Debug -Message "[$($ModuleInfo.Name)] Analysis completed"
+                    }
                 }
-                Write-Verbose "Resolve Module Definition File completed"
             }
             catch
             {
-                Write-Error "Resolve Module Definition File failed. Details: $_" -ErrorAction 'Stop'
-            }
-
-
-            #Validate Module
-            try
-            {
-                Write-Verbose "Validate Module started"
-                $ModuleInfo = Get-Module -ListAvailable -FullyQualifiedName $ModuleDefinitionFile.FullName -Refresh -ErrorAction Stop | sort -Property Version | select -Last 1
-                if ($ModuleInfo)
-                {
-                    $ModuleValidation.IsModule = $true
-                    $ModuleValidation.ModuleInfo = $ModuleInfo
-                }
-      
-                Write-Verbose "Validate Module completed"
-            }
-            catch
-            {
-            }
-
-
-            #Validate Version Integrity
-            if ($ModuleValidation.IsModule)
-            {
-                #Check Version Control
-                try
-                {
-                    $ModulePsd = Import-PSDataFile -FilePath $ModuleValidation.ModuleInfo.Path -ErrorAction Stop
-                    $VersionControl = $ModulePsd.PrivateData.VersionControl | ConvertFrom-Json -ErrorAction Stop
-                }
-                catch
-                {
-
-                }
-
-                if ($VersionControl)
-                {
-                    $ModuleValidation.SupportVersonControl = $true
-                    $GetFileHash_Params = @{
-                        Path = (Join-Path -Path $ModuleValidation.ModuleInfo.ModuleBase -ChildPath $ModuleValidation.ModuleInfo.RootModule -ErrorAction Stop)
-                    }
-                    if ($VersionControl.HashAlgorithm)
-                    {
-                        $GetFileHash_Params.Add('Algorithm', $VersionControl.HashAlgorithm)
-                    }
-                    $CurrentHash = Get-FileHash @GetFileHash_Params -ErrorAction Stop
-
-                    if ($VersionControl.Version -eq $ModuleValidation.ModuleInfo.Version)
-                    {
-                        if ($VersionControl.Hash -eq $CurrentHash.Hash)
-                        {
-                            $ModuleValidation.IsVersionValid = $true
-                        }
-                        else
-                        {
-                            $ModuleValidation.IsNewVersion = $true
-                        }
-                    }
-                }
-            }
-
-            #Validate IsReadyForPackaging
-            if ($ModuleValidation.IsModule)
-            {
-                if ($ModuleValidation.ModuleInfo.Author -and $ModuleValidation.ModuleInfo.Description)
-                {
-                    $ModuleValidation.IsReadyForPackaging = $true
-                }
+                # Test functions should not throw exceptions. If something is wrong with the module, it will be indicated in one of the bool flags of the result
             }
 
             $ModuleValidation
         }
+    }
+
+    End
+    {
+        $VerbosePreference = $oldVerbosePref
     }
 }
 
@@ -381,7 +383,7 @@ function Test-PSScript
             #Validate Script
             try
             {
-                Write-Verbose "Validate Script started"
+                Write-Verbose "[Validate Script] Processing '$($Item.FullName)'"
                 $ScriptInfo = Test-ScriptFileInfo -Path $Item.FullName -ErrorAction Stop
                 if ($ScriptInfo)
                 {
@@ -389,7 +391,7 @@ function Test-PSScript
                     $ScriptValidation.ScriptInfo = $ScriptInfo
                 }
       
-                Write-Verbose "Validate Script completed"
+         #       Write-Verbose "Validate Script completed"
             }
             catch
             {
@@ -425,7 +427,7 @@ At $($item.Extent.File) line:$($item.Extent.StartLineNumber) expr:$($item.Extent
                     if ($VersionControl.Version -eq $ScriptValidation.ScriptInfo.Version)
                     {
                         #Calculate scriptContent hash
-                        $ScriptContent_Raw = Get-Command -Name $ScriptValidation.ScriptInfo.Path -ErrorAction Stop
+                        $ScriptContent_Raw = Get-Command -Name $ScriptValidation.ScriptInfo.Path -ErrorAction Stop -Verbose:$false
                         $ScriptContent = Get-PSScriptContent -ScriptBlock $ScriptContent_Raw.ScriptBlock.Ast -ErrorAction Stop
                         $ScriptContent_BA = [System.Text.Encoding]::UTF8.GetBytes($ScriptContent)
                         $ScriptContent_MemoryStream = New-Object -TypeName System.IO.MemoryStream -ArgumentList @(, $ScriptContent_BA)
@@ -477,7 +479,7 @@ function Update-PSModuleVersion
     
     Begin
     {
-          
+        $VerbosePreference = 'SilentlyContinue'
     }
 
     Process
@@ -496,7 +498,7 @@ function Update-PSModuleVersion
                 }) -ErrorAction Stop -Compress
             Update-ModuleManifest -Path $ModuleValidation.ModuleInfo.Path -ModuleVersion $NewVersion -PrivateData @{
                 VersionControl = $VersionControlAsJson
-            } -ErrorAction Stop
+            } -ErrorAction Stop -Verbose:$false
         }
     }
 

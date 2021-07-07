@@ -320,6 +320,187 @@ function priv_Publish-PSModule
     }
 }
 
+function priv_Get-ModuleDefinition
+{
+    [CmdletBinding()]
+    param
+    (
+        #ModulePath
+        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Module')]
+        [string]$ModulePath,
+
+        #DestinationPath
+        [Parameter(Mandatory = $true)]
+        [string[]]$DestinationPath,
+
+        #ProactiveRequiredModuleLoading
+        [Parameter(Mandatory = $false)]
+        [bool]$ProactiveRequiredModuleLoading = $false
+    )
+
+    Process
+    {
+        try
+        {
+            $JobParams = @{
+                ArgumentList = @(@{
+                    ModulePath = $ModulePath
+                    DestinationPath = $DestinationPath
+                    ProactiveRequiredModuleLoading = $ProactiveRequiredModuleLoading
+                })
+                ScriptBlock = {
+			        
+                    $VerbosePreference = 'SilentlyContinue'
+                    $WarningPreference = 'SilentlyContinue'
+
+                    $cfg = $args[0]
+                    $hashSet = [System.Collections.Generic.HashSet[string]]::new(([System.Environment]::GetEnvironmentVariable('PsModulePath', [System.EnvironmentVariableTarget]::Process)).Split(";", [System.StringSplitOptions]::RemoveEmptyEntries), [System.StringComparer]::OrdinalIgnoreCase)
+                    $changePending = $false
+                    if($cfg.DestinationPath)
+                    {
+                        foreach($dstPath in $cfg.DestinationPath)
+                        {
+                            if((-not [string]::IsNullOrEmpty($dstPath)) -and [IO.Directory]::Exists($dstPath))
+                            {
+                                if($hashSet.Add($dstPath))
+                                {
+                                    $changePending = $true
+                                }
+                            }
+                        }
+                    }
+
+                    if($changePending)
+                    {
+                        [System.Environment]::SetEnvironmentVariable('PsModulePath', ($hashSet -join ';'), [System.EnvironmentVariableTarget]::Process)
+                    }
+
+                    if($cfg.ProactiveRequiredModuleLoading)
+                    {
+                        function priv_ImportModule
+                        {
+                            [CmdletBinding()]
+                            Param 
+	                        (
+                                [Parameter(Mandatory = $true)]
+                                [hashtable[]]$ModuleInfo
+                            )
+
+                            foreach($modInfo in $ModuleInfo)
+                            {
+                                $ReqModObj = Get-Module -Name ($modInfo.ModuleName) -ListAvailable -Refresh -ErrorAction Stop -Verbose:$false | Sort-Object -Property Version -Descending | Select-Object -First 1
+
+                                if(-not ($ReqModObj))
+                                {
+                                    if(Test-Path -Path $modInfo.Path)
+                                    {
+                                        $ReqModObj = Get-Module -Name ($modInfo.Path) -ListAvailable -Refresh -ErrorAction Stop -Verbose:$false | Sort-Object -Property Version -Descending | Select-Object -First 1
+                                    }
+                                }
+
+                                if(-not ($ReqModObj))
+                                {
+                                    throw "Failed to load required module '$($modInfo.ModuleName)'. Module was not found."
+                                }
+
+                                if($ReqModObj.RequiredModules)
+                                {
+                                    priv_ImportModule -ModuleInfo @(@($ReqModObj.RequiredModules).ForEach{ @{ ModuleName = ($_.Name); ModuleVersion = ($_.Version); Path = ($_.Path) } })
+                                }
+
+                                if(-not (Get-Module -Name $ReqModObj.Name))
+                                {
+                               #     Write-Verbose -Message "DEBUG: Importing required module '$($modInfo.ModuleName)'" -Verbose
+                                    $null = Import-Module -FullyQualifiedName ($ReqModObj.Path) -ErrorAction Stop -WarningAction SilentlyContinue -Verbose:$false
+                                }
+                            }
+                        }
+
+                        [IO.DirectoryInfo]$PrimaryModulePath = ($cfg.ModulePath)
+                        $PrimaryModuleDefinitionFile = Get-ChildItem -Path ($PrimaryModulePath.FullName) -Recurse -filter "$($PrimaryModulePath.Name).psd1" -ErrorAction Stop -File
+                        $PrimaryModuleObj = Get-Module -ListAvailable -FullyQualifiedName ($PrimaryModuleDefinitionFile.FullName) -Refresh -ErrorAction Stop -Verbose:$false
+
+                        if($PrimaryModuleObj.RequiredModules)
+                        {
+                            priv_ImportModule -ModuleInfo @(@($PrimaryModuleObj.RequiredModules).ForEach{ @{ ModuleName = ($_.Name); ModuleVersion = ($_.Version); Path = ($_.Path) } })
+                        }
+                    }
+
+                    $ModFresh = Import-Module -FullyQualifiedName ($cfg.ModulePath) -PassThru -ErrorAction Stop -WarningAction SilentlyContinue -Verbose:$false -ErrorVariable er
+
+                    if (-not $ModFresh)
+                    {
+                        throw "Unable to Import Module: $($args[0]). Details: $er"
+                    }
+                
+                    $ModFresh.Definition
+                }
+            }
+
+            $Job = Start-Job @JobParams -Verbose:$false
+
+            $null = Wait-Job -Job $Job -Verbose:$false
+
+            Receive-Job -Job $Job -ErrorAction Stop -Verbose:$false  # returns the module definition as string
+        }
+        catch
+        {
+            throw "Failed to load Module Definition. Details: $_"
+        }
+        finally
+        {
+            Remove-Job -Job $Job -Force
+        }
+    }
+}
+
+function priv_Get-ScriptDefinition
+{
+    [CmdletBinding()]
+    param
+    (
+        #ModulePath
+        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Module')]
+        [string]$ScriptPath
+    )
+
+    Process
+    {
+        try
+        {
+            $JobParams = @{
+                ArgumentList = @(@{
+                    ScriptPath = $ScriptPath
+                })
+                ScriptBlock = {
+			        
+                    $VerbosePreference = 'SilentlyContinue'
+                    $WarningPreference = 'SilentlyContinue'
+
+                    $cfg = $args[0]
+                
+                    (Get-Command -Name $cfg.ScriptPath -ErrorAction Stop -Verbose:$false).ScriptBlock.ToString()
+                }
+            }
+
+            $Job = Start-Job @JobParams -Verbose:$false
+
+            $null = Wait-Job -Job $Job -Verbose:$false
+
+            Receive-Job -Job $Job -ErrorAction Stop -Verbose:$false  # returns the module definition as string
+        }
+        catch
+        {
+            throw "Failed to load Script Definition. Details: $_"
+        }
+        finally
+        {
+            Remove-Job -Job $Job -Force
+        }
+    }
+}
+
+<#
 function priv_Analyse-ItemDependancies
 {
     [CmdletBinding()]
@@ -337,9 +518,9 @@ function priv_Analyse-ItemDependancies
         [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Script')]
         [string]$ScriptPath,
 
-        #GlobalCommandAnalysis
-        [Parameter(Mandatory = $true)]
-        [ref]$GlobalCommandAnalysis,
+  #      #GlobalCommandAnalysis
+  #      [Parameter(Mandatory = $true)]
+  #      [ref]$GlobalCommandAnalysis,
 
         #PSGetRepository
         [Parameter(Mandatory = $false)]
@@ -358,7 +539,7 @@ function priv_Analyse-ItemDependancies
     {
         #Construct JobParams
         $JobParams = @{
-            GlobalCommandAnalysisAsJson = $GlobalCommandAnalysis.Value.ToJson()
+            GlobalCommandAnalysisAsJson = [PSBuild.Context]::Current.CommandsToModuleMapping.ToJson()
             CurrentDependancies         = $CurrentDependancies
             PSGetRepository             = $PSGetRepository
             PSBuildDllPath              = [System.AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'PSBuildEntities' } | select -ExpandProperty Location
@@ -400,8 +581,8 @@ function priv_Analyse-ItemDependancies
                 Import-Module -FullyQualifiedName $JobParams["PSBuildModulePath"]
                 Import-Module -FullyQualifiedName $JobParams["AstExtensionsModulePath"]
                 Add-Type -Path $JobParams['PSBuildDllPath'] -ErrorAction Stop
-                $GlobalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::FromJson($JobParams['GlobalCommandAnalysisAsJson'])
-                $LocalCommandAnalysis = [PSBuildEntities.AnalysisResultCollection]::New()
+                $GlobalCommandAnalysis = [PSBuild.CommandAnalysisCollection]::FromJson($JobParams['GlobalCommandAnalysisAsJson'])
+                $LocalCommandAnalysis = [PSBuild.CommandAnalysisCollection]::New()
 			
                 #Get Module ScriptBlockAst
                 if ($JobParams.ContainsKey('ModulePath'))
@@ -418,7 +599,7 @@ function priv_Analyse-ItemDependancies
                     $WarningPreference = $OldWarningPreference
                     if (-not $ModFresh)
                     {
-                        throw "Unable to Import Module: $($ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase). Details: $er"
+                        throw "Unable to Import Module: $($JobParams['ModulePath']). Details: $er"
                     }
                     $ModuleSb = [scriptblock]::Create($ModFresh.Definition)
                     $ScriptBlockAst = $ModuleSb.Ast
@@ -455,7 +636,7 @@ function priv_Analyse-ItemDependancies
                 {
                     foreach ($cmd in $NonLocalCommands)
                     {
-                        $CmdResult = [PSBuildEntities.AnalysisResult]::new()
+                        $CmdResult = [PSBuild.CommandAnalysis]::new()
                         #Determine CmdName and Module
                         if ($cmd.Contains('\'))
                         {
@@ -589,7 +770,7 @@ function priv_Analyse-ItemDependancies
                                         $FindModule_Params.Add('Proxy', $JobParams['Proxy'])
                                     }
                                     Remove-Variable -Name TempNugetResult -ErrorAction SilentlyContinue
-                                    $private:TempNugetResult = Find-Module @FindModule_Params -ErrorAction Stop
+                                    $private:TempNugetResult = Find-Module  @FindModule_Params -ErrorAction Stop
 
                                     #Map search results to MissingCommands
                                     if ($TempNugetResult)
@@ -601,7 +782,7 @@ function priv_Analyse-ItemDependancies
                                             {
                                                 $LocalCommandAnalysis[$MissingCmd.CommandName].CommandSource = $MissingCmdModule.Name -join ','
                                                 $LocalCommandAnalysis[$MissingCmd.CommandName].CommandType = 'Command'
-                                                $LocalCommandAnalysis[$MissingCmd.CommandName].SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::ProGet
+                                                $LocalCommandAnalysis[$MissingCmd.CommandName].SourceLocation = [PSBuild.CommandSourceLocation]::ProGet
                                                 $LocalCommandAnalysis[$MissingCmd.CommandName].IsFound = $true
                                             }
                                         }
@@ -664,34 +845,527 @@ function priv_Analyse-ItemDependancies
             Remove-Job -Job $Job -Force
         }
 
-        #Update GlobalCommandAnalysis
-        $GlobalCommandAnalysis.Value = [PSBuildEntities.AnalysisResultCollection]::FromJson($JobResult.GlobalCommandAnalysisAsJson)
-        [PSBuildEntities.AnalysisResultCollection]::FromJson($JobResult.LocalCommandAnalysisAsJson)
+        #Update CommandsToModuleMapping
+        $null = [PSBuild.Context]::Current.CommandsToModuleMapping.TryAdd([PSBuild.CommandAnalysisCollection]::FromJson($JobResult.GlobalCommandAnalysisAsJson))
+
+        [PSBuild.CommandAnalysisCollection]::FromJson($JobResult.LocalCommandAnalysisAsJson)
     }
 }
+#>
 
-function priv_Validate-Module
+function priv_Test-Module
 {
     [CmdletBinding()]
+    [OutputType([PSBuild.PSModuleValidation])]
     param
     (
-        #SourcePath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
-        [System.IO.DirectoryInfo[]]$SourcePath,
+        [Parameter(Mandatory = $true)]
+        [string]$ModulePath,
 
-        #ModuleValidation
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_Default')]
-        [ref]$ModuleValidationCache
+        [Parameter(Mandatory = $false)]
+        [Version]$Version
     )
     
     Process
     {
-        foreach ($Module in $SourcePath)
+        $TestPsModule_Params = @{
+             ModulePath = $ModulePath
+             ErrorAction = 'Stop'
+        }
+        if($PSBoundParameters.ContainsKey('Version')) { $TestPsModule_Params.Add('Version', $Version) }
+
+        $testResult = Test-PSModule @TestPsModule_Params -Verbose:$false
+
+        $wrappedResult = [PSBuild.PSModuleValidation]::new()
+        $wrappedResult.ModuleInfo           = $testResult.ModuleInfo
+        $wrappedResult.IsModule             = $testResult.IsModule
+        $wrappedResult.IsVersionValid       = $testResult.IsVersionValid
+        $wrappedResult.IsNewVersion         = $testResult.IsNewVersion
+        $wrappedResult.SupportVersonControl = $testResult.SupportVersonControl
+        $wrappedResult.IsReadyForPackaging  = $testResult.IsReadyForPackaging
+
+        $wrappedResult
+    }
+}
+
+function priv_Test-Script
+{
+    [CmdletBinding()]
+    [OutputType([PSBuild.PSScriptValidation])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath,
+		
+        #UseScriptConfigFile
+        [Parameter(Mandatory = $false)]
+        [switch]$UseScriptConfigFile
+    )
+    
+    Process
+    {
+        $TestPsScript_Params = @{
+             ScriptPath = $ScriptPath
+             UseScriptConfigFile = ($UseScriptConfigFile.IsPresent)
+             ErrorAction = 'Stop'
+        }
+
+        $testResult = Test-PSScript @TestPsScript_Params -Verbose:$false
+
+        $wrappedResult = [PSBuild.PSScriptValidation]::new(@{
+            ScriptInfo           = $testResult.ScriptInfo
+            ScriptConfig         = $testResult.ScriptConfig
+            IsScript             = $testResult.IsScript
+            IsVersionValid       = $testResult.IsVersionValid
+            IsNewVersion         = $testResult.IsNewVersion
+            SupportVersonControl = $testResult.SupportVersonControl
+            IsReadyForPackaging  = $testResult.IsReadyForPackaging
+            ValidationErrors     = $testResult.ValidationErrors
+        })
+
+        $wrappedResult
+    }
+}
+
+function priv_Build-SolutionModulesCache
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [PSBuild.PSModuleBuildInfo[]]$BuildConfiguration,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$Clear
+    )
+    
+    Process
+    {
+        if($Clear)
         {
-            $moduleName = $Module.Name
-            if (-not $ModuleValidationCache.Value.ContainsKey($moduleName))
+            [PSBuild.Context]::Current.SolutionModulesCache.Clear()
+        }
+
+        foreach ($ModBuildCfg in $BuildConfiguration)
+        {
+            if( -not ([PSBuild.Context]::Current.SolutionModulesCache.Contains($ModBuildCfg.Name)))
             {
-                $null = $ModuleValidationCache.Value.Add($moduleName, (Test-PSModule -ModulePath $Module.FullName -ErrorAction Stop))
+                $testResult = priv_Test-Module -ModulePath ($ModBuildCfg.SourcePath)
+                if($testResult.IsModule)
+                {
+                    $testResult.TargetDirectory = $ModBuildCfg.DestinationPath
+                    [PSBuild.Context]::Current.SolutionModulesCache.Add($testResult)
+                }
+                else
+                {
+                    throw "Build Solution Module Cache failed. Unsupported operation: missing ModuleInfo for module $($ModBuildCfg.Name)."
+                }
+            }
+        }
+    }
+}
+
+function priv_Build-SolutionScriptsCache
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [PSBuild.PSScriptBuildInfo[]]$BuildConfiguration,
+		
+        #UseScriptConfigFile
+        [Parameter(Mandatory = $false)]
+        [switch]$UseScriptConfigFile,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$Clear
+    )
+    
+    Process
+    {
+        if($Clear)
+        {
+            [PSBuild.Context]::Current.SolutionScriptsCache.Clear()
+        }
+
+        foreach ($ScrBuildCfg in $BuildConfiguration)
+        {
+            if( -not ([PSBuild.Context]::Current.SolutionScriptsCache.Contains($ScrBuildCfg.SourcePath)))
+            {
+                Write-Verbose -Message "[Build PSScript] Analyzing '$($ScrBuildCfg.Name)'"
+
+                $TestScript_Params = @{
+                     ScriptPath = ($ScrBuildCfg.SourcePath)
+                     UseScriptConfigFile = ($UseScriptConfigFile.IsPresent)
+                }
+
+                $testResult = priv_Test-Script @TestScript_Params
+                if($testResult.IsScript)
+                {
+                    $testResult.TargetDirectory = $ScrBuildCfg.DestinationPath
+                    $testResult.RequiredModulesTargetDirectory = $ScrBuildCfg.RequiredModulesDestinationPath
+                    [PSBuild.Context]::Current.SolutionScriptsCache.Add($testResult)
+                }
+                else
+                {
+                    $ErrorMsg = "Build Solution Scripts Cache failed."
+
+                    if($testResult.ValidationErrors)
+                    {
+                        $ErrorMsg += [System.Environment]::NewLine
+                        $ErrorMsg += "Validation Errors:"
+                        $ErrorMsg += [System.Environment]::NewLine
+                        $ErrorMsg += $testResult.ValidationErrors -join "$([System.Environment]::NewLine)"
+                    }
+                    else
+                    {
+                        $ErrorMsg += " Unsupported operation: missing ScriptInfo for script $($ScrBuildCfg.FullName)."
+                    }
+
+                    throw $ErrorMsg
+                }
+            }
+        }
+    }
+}
+
+function priv_Build-CommandsToModuleMapping
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param
+    (
+        [Parameter(Mandatory = $false)]
+        [switch]$Clear
+    )
+
+    Process
+    {
+        if($Clear)
+        {
+            [PSBuild.Context]::Current.CommandsToModuleMapping.Clear()
+        }
+
+        # Validate Native Commands
+        try
+        {
+            #Add BuiltIn Comands and Aliases to CommandsToModuleMapping (from module 'Microsoft.PowerShell.Core' as they are BuiltIn to PowerShell)
+            foreach($psNativeModule in $PSNativeModules)
+            {
+                [PSModuleInfo]$psNativeModuleObj = Get-Module -Name $psNativeModule -ListAvailable -Verbose:$false -ErrorAction Stop | Select-Object -First 1
+
+                if($psNativeModuleObj)
+                {
+                    [PSBuild.Context]::Current.ExternalModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($psNativeModuleObj.Name, $psNativeModuleObj.Version, $null, $psNativeModuleObj.Path))
+                }
+                else
+                {
+                    $psNativeSnapInObj = Get-PSSnapin -Name $psNativeModule -Verbose:$false -ErrorAction SilentlyContinue | Select-Object -First 1
+
+                    if($psNativeSnapInObj)
+                    {
+                        [PSBuild.Context]::Current.ExternalModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($psNativeSnapInObj.Name, $psNativeSnapInObj.Version, $null, $null))
+                    }
+                    else
+                    {
+                        Write-Warning -Message "Module '$psNativeModule' is marked as a required native module but it could not be found."
+                    }
+                    $psNativeSnapInObj = $null
+                }
+                $psNativeModuleObj = $null
+            }
+            
+            #This also imports the module in the current session
+            Get-Command -Module $PSNativeModules | ForEach-Object {
+
+                #Add Command
+                $Command = [PSBuild.CommandSource]::new($_, [PSBuild.CommandSourceLocation]::BuiltIn)
+                if ($Command.CommandType -eq 'Alias')
+                {
+                    try
+                    {
+                        $currentVerbosePref = $VerbosePreference
+                        $VerbosePreference = "SilentlyContinue"
+
+                        $TempFinding2 = Get-Command -Name $Command.CommandName -ErrorAction Stop
+                        $Command.Source = $TempFinding2.Source
+
+                        $VerbosePreference = $currentVerbosePref
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                #Do not validate duplicates here
+                $null = [PSBuild.Context]::Current.CommandsToModuleMapping.AddCommandSource($Command, $false)
+
+                #Add Alias if exists
+                Get-Alias -Definition $_.Name -ErrorAction SilentlyContinue | foreach {
+                    $Alias = [PSBuild.CommandSource]::new($_, [PSBuild.CommandSourceLocation]::BuiltIn)
+                    $Alias.Source = $Command.Source
+                    $null = [PSBuild.Context]::Current.CommandsToModuleMapping.AddCommandSource($Alias, $false)
+                }
+            }
+        }
+        catch
+        {
+            Write-Error "Validate Native Commands failed. Details: $_" -ErrorAction 'Stop'
+        }
+
+
+        # Add Solution Commands to CommandsToModuleMapping (from all modules in the solution)
+        foreach ($ModuleObj in [PSBuild.Context]::Current.SolutionModulesCache)
+        {
+            priv_Update-CommandsToModuleMapping -ModuleInfo ($ModuleObj.ModuleInfo) -CommandSourceLocation Solution
+        }
+
+        # Add External Dependency Commands to CommandsToModuleMapping
+        foreach($ModuleObj in [PSBuild.Context]::Current.SolutionModulesCache)
+        {
+            foreach($RequiredModuleExt in $ModuleObj.GetExternalModuleDependencies())
+            {
+                if(-not ([PSBuild.Context]::Current.ExternalModulesCache.Contains($RequiredModuleExt.Name)))
+                {
+                    # Search default PS locations
+                    $ResolvedExtModuleObj = $null
+                    $ResolvedExtModuleObj = Get-Module -Name ($RequiredModuleExt.Name) -ListAvailable -Refresh -ErrorAction SilentlyContinue -Verbose:$false | Sort-Object -Property Version | Select-Object -Last 1
+
+                    if($ResolvedExtModuleObj)
+                    {
+                        priv_Update-CommandsToModuleMapping -ModuleInfo $ResolvedExtModuleObj -CommandSourceLocation Unknown
+                        [PSBuild.Context]::Current.ExternalModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ResolvedExtModuleObj.Name, $ResolvedExtModuleObj.Version, $null, $ResolvedExtModuleObj.Path))
+                    }
+                    else
+                    {
+                        # Try resolve module by path
+                        if(Test-Path -Path ($RequiredModuleExt.Path))
+                        {
+                            $ResolvedExtModuleObj = Get-Module -Name ($RequiredModuleExt.Path) -ListAvailable -Refresh -ErrorAction SilentlyContinue -Verbose:$false | Sort-Object -Property Version | Select-Object -Last 1
+                        }
+
+                        if($ResolvedExtModuleObj)
+                        {
+                            priv_Update-CommandsToModuleMapping -ModuleInfo $ResolvedExtModuleObj -CommandSourceLocation Unknown
+                            $mbi = [PSBuild.PSModuleBuildInfo]::new($ResolvedExtModuleObj.Name, $ResolvedExtModuleObj.Version, $null, $ResolvedExtModuleObj.Path)                            
+                            $mbi.IsPortableModule = $false
+                            [PSBuild.Context]::Current.ExternalModulesCache.Add($mbi)
+                        }
+                        else
+                        {
+                            throw "Failed to resolve External Dependencies for Module '$ModuleObj'. Required module '$RequiredModuleExt' was not found."
+                        }
+                    }
+                }
+            }
+        }
+
+
+    }
+}
+
+function priv_Update-CommandsToModuleMapping
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [PSModuleInfo]$ModuleInfo,
+
+        [Parameter(Mandatory = $false)]
+        [PSBuild.CommandSourceLocation]$CommandSourceLocation = [PSBuild.CommandSourceLocation]::Unknown
+    )
+
+    Process
+    {
+        #Validate Module Commands
+        try
+        {
+            foreach ($cmd in $ModuleInfo.ExportedCommands.Values)
+            {
+                $Command = [PSBuild.CommandSource]::new($cmd, $CommandSourceLocation)
+
+                # The command already exists in the collection
+                if([PSBuild.Context]::Current.CommandsToModuleMapping.Contains($Command.CommandName))
+                {
+                    if([PSBuild.Context]::Current.CommandsToModuleMapping[$Command.CommandName].ContainsSource($Command.Source))
+                    {
+                        # This module is already present in the collection
+                    }
+                    elseif ([PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping)
+                    {
+                        throw "Command with name '$($Command.CommandName)' is present in multiple modules: $([PSBuild.Context]::Current.CommandsToModuleMapping[$Command.CommandName].CommandSources[0].Source), $($Command.Source)"
+                    }
+                    else
+                    {
+                        $null = [PSBuild.Context]::Current.CommandsToModuleMapping.AddCommandSource($Command)
+                    }
+                }
+                # The command is new
+                else
+                {
+                    $null = [PSBuild.Context]::Current.CommandsToModuleMapping.AddCommandSource($Command)
+                }
+            }
+        }
+        catch
+        {
+            Write-Error "Validate Module Commands failed. Details: $_" -ErrorAction 'Stop'
+        }
+    }
+}
+
+function priv_Save-RequiredNugetModules
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [PSBuild.RequiredModuleSpecs[]]$RequiredModules,
+
+        #PSGetRepository
+        [Parameter(Mandatory = $true)]
+        [hashtable[]]$PSGetRepository,
+
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy
+    )
+
+    Process
+    {
+        ### FIND ITEMS (At this step the goal is to know which repository hosts the required module.)
+        foreach($ReqModule in $RequiredModules)
+        {
+            if([PSBuild.Context]::Current.PsGetModuleValidationCache.Contains($ReqModule.Name, $ReqModule.Version))
+            {
+                # This may happen if you call the Build-PSModule function twice
+                Write-Verbose -Message "[Build PSModule] Skipping module $ReqModule (already resolved)"
+
+                ### NOTE: This updates the original object - therefore the caller function will see the updates !!!
+                $ReqModule.SourceInformation = [PSBuild.Context]::Current.PsGetModuleValidationCache.Find({param($mvc) process{($mvc.Name -eq $ReqModule.Name) -and ($mvc.Version -eq $ReqModule.Version)}})
+            }
+            else
+            {
+                $tempCollection = [PSBuild.PSRepositoryItemValidationCollection]::new()
+                foreach($Repo in $PSGetRepository)
+                {
+                    $PSGet_Params = @{
+                        Name       = ($ReqModule.Name)
+                        Repository = ($Repo.Name)
+                    }
+                    if (-not ([PSBuild.Context]::Current.UpdateModuleReferences)) { $PSGet_Params.Add('RequiredVersion', $ReqModule.Version) }
+                    if ($Repo.ContainsKey('Credential'))          { $PSGet_Params.Add('Credential', $Repo.Credential) }
+                    if ($PSBoundParameters.ContainsKey('Proxy'))  { $PSGet_Params.Add('Proxy', $Proxy) }
+
+                    try
+                    {
+                        $PSRepoItem = Find-Module @PSGet_Params -ErrorAction Stop -Verbose:$false
+                        if($PSRepoItem)
+                        {
+                            $tempCollection.Add([PSBuild.PSRepositoryItemValidation]::new(@{
+                                Dependencies = $PSRepoItem.Dependencies
+                                Includes     = $PSRepoItem.Includes
+                                Name         = $PSRepoItem.Name
+                                Repository   = $PSRepoItem.Repository
+                                Type         = $PSRepoItem.Type
+                                Version      = $PSRepoItem.Version
+                                PackageManagementProvider = $PSRepoItem.PackageManagementProvider
+                                RepositorySourceLocation  = $PSRepoItem.RepositorySourceLocation
+                                Priority     = $Repo.Priority
+                                Credential   = $Repo.Credential
+                            }))
+
+                            Write-Verbose -Message "[Build PSModule] Module $ReqModule found in repository $($Repo.Name)"
+                        }
+                    }
+                    catch
+                    {
+                        # Module not found in repo
+                    }
+                }
+
+                if($tempCollection.Count -eq 0)
+                {
+                    Write-Warning -Message "Module $ReqModule was not found in registered repositories. The build process may still succeed if the module was previously built in the same destination folder."
+                }
+                elseif($tempCollection.Count -eq 1)
+                {
+                    ### NOTE: This updates the original object - therefore the caller function will see the updates !!!
+                    $ReqModule.SourceInformation = $tempCollection[0]
+                    [PSBuild.Context]::Current.PsGetModuleValidationCache.Add($ReqModule.SourceInformation)
+                }
+                else
+                {
+                    # If a module version is found in multiple repositories, use only the repo with higher priority
+
+                    ### NOTE: This updates the original object - therefore the caller function will see the updates !!!
+                    $ReqModule.SourceInformation = $($tempCollection | Sort-Object -Property Priority | Select-Object -First 1)
+                    [PSBuild.Context]::Current.PsGetModuleValidationCache.Add($ReqModule.SourceInformation)
+                }
+
+                $tempCollection = $null
+            }
+        }
+
+
+        ## SAVE ITEMS
+        Write-Verbose -Message "[Build PSModule] Downloading modules from repositories..."
+        foreach($ReqModule in $RequiredModules)
+        {
+            if(-not [IO.Directory]::Exists($ReqModule.TargetDirectory)) { $null = [IO.Directory]::CreateDirectory($ReqModule.TargetDirectory) }
+
+            $TargetBuildPath = [IO.Path]::Combine($ReqModule.TargetDirectory, ($ReqModule.SourceInformation.Name))
+            $ExistingModuleTest = $null
+
+            $ExistingModuleTest = priv_Test-Module -ModulePath $TargetBuildPath -Version ($ReqModule.SourceInformation.Version)
+
+            if($ExistingModuleTest.IsModule -and (( -not ($ExistingModuleTest.SupportVersonControl)) -or ($ExistingModuleTest.IsVersionValid)))
+            {
+                Write-Verbose -Message "[Build PSModule] Skipping module $ExistingModuleTest - a valid version already exists at target location."
+                [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ExistingModuleTest.ModuleName, $ExistingModuleTest.ModuleInfo.Version, $null, $ReqModule.TargetDirectory))
+                priv_Update-CommandsToModuleMapping -ModuleInfo ($ExistingModuleTest.ModuleInfo) -CommandSourceLocation ProGet
+            }
+            elseif($ReqModule.SourceInformation)
+            {
+                Write-Verbose -Message "[Build PSModule] Downloading $($ReqModule.SourceInformation) (Repository: $($ReqModule.SourceInformation.Repository))"
+
+                $SaveModule_Params = @{
+                    Name            = $ReqModule.SourceInformation.Name
+                    Repository      = $ReqModule.SourceInformation.Repository
+                    RequiredVersion = $ReqModule.SourceInformation.Version
+                    Path            = $ReqModule.TargetDirectory
+                    ErrorAction     = 'Stop'
+                    Verbose         = $false
+                }
+                if ($ReqModule.SourceInformation.Credential) { $SaveModule_Params.Add('Credential', $ReqModule.SourceInformation.Credential) }
+                if ($PSBoundParameters.ContainsKey('Proxy')) { $SaveModule_Params.Add('Proxy', $Proxy) }
+
+                Save-Module @SaveModule_Params
+
+                $ExistingModuleTest = priv_Test-Module -ModulePath $TargetBuildPath -Version ($ReqModule.SourceInformation.Version) -Verbose:$false
+
+                if($ExistingModuleTest.IsModule)
+                {
+                    if($ExistingModuleTest.SupportVersonControl -and ( -not ($ExistingModuleTest.IsVersionValid)))
+                    {
+                        # There is not much we can do for modules that are downloaded from repos. Show a warning and hope for the best :)
+                        Write-Warning -Message "$ExistingModuleTest was successfully downloaded but it was detected that there are inconsistencies with the module's version control. Make sure the module is valid."
+                    }
+
+                    [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ExistingModuleTest.ModuleName, $ExistingModuleTest.ModuleInfo.Version, $null, $ReqModule.TargetDirectory))
+                    priv_Update-CommandsToModuleMapping -ModuleInfo ($ExistingModuleTest.ModuleInfo) -CommandSourceLocation ProGet
+                }
+                else
+                {
+                    throw "The module $ExistingModuleTest downloaded from $($ReqModule.SourceInformation.Repository) failed module validations."
+                }
+            }
+            else
+            {
+                throw "The solution requires external module $ReqModule but it was not found in any repository."
             }
         }
     }
@@ -701,6 +1375,7 @@ function priv_Validate-Module
 
 #region Public Functions
 
+
 function Build-PSModule
 {
     [CmdletBinding()]
@@ -708,12 +1383,16 @@ function Build-PSModule
     param
     (
         #SourcePath
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'BySourceAndDestinationPaths')]
         [System.IO.DirectoryInfo[]]$SourcePath,
 
         #DestinationPath
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'BySourceAndDestinationPaths')]
         [System.IO.DirectoryInfo]$DestinationPath,
+
+        #ModulePathConfiguration
+        [Parameter(Mandatory = $true, ParameterSetName = 'ByModulePathConfiguration')]
+        [PSBuild.PSModuleBuildInfo[]]$ModulePathConfiguration,
 
         #ResolveDependancies
         [Parameter(Mandatory = $false)]
@@ -721,7 +1400,7 @@ function Build-PSModule
 
         #CheckCommandReferencesConfiguration
         [Parameter(Mandatory = $false)]
-        [CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration = ([CheckCommandReferencesConfiguration]::new()),
+        [PSBuild.CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration,
 
         #CheckDuplicateCommandNames
         [Parameter(Mandatory = $false)]
@@ -735,538 +1414,323 @@ function Build-PSModule
         [Parameter(Mandatory = $false)]
         [hashtable[]]$PSGetRepository,
 
-        #ModuleValidation
-        [Parameter(Mandatory = $false)]
-        [ref]$ModuleValidationCache,
-
-        #PsGetModuleValidation
-        [Parameter(Mandatory = $false)]
-        [ref]$PsGetModuleValidationCache,
-
         #Proxy
         [Parameter(Mandatory = $false)]
         [uri]$Proxy
     )
-    
+
     Process
     {
-        #Add DestinationPath to Process PSModulePath
-        try
+        ### PART 1: Prerequisites
+        Write-Verbose -Message "[Build PSModule] Preparing Prerequisites..."
+
+        $ModuleBuildCfg = [PSBuild.PSModuleBuildInfoCollection]::new()
+        $ModuleDestinationList = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        if($PsCmdlet.ParameterSetName -eq 'BySourceAndDestinationPaths')
         {
-            Add-PSModulePathEntry -Path $DestinationPath -Scope Process -Force
+            foreach($srcPath in $SourcePath)
+            {
+                $ModuleBuildCfg.Add([PSBuild.PSModuleBuildInfo]::new(
+                    $srcPath.Name,
+                    $null,
+                    $srcPath.FullName,
+                    $DestinationPath.FullName
+                ))
+            }
+            $null = $ModuleDestinationList.Add($DestinationPath.FullName)
         }
-        catch
+        else
         {
-            Write-Error "Add DestinationPath to Process PSModulePath failed. Details: $_" -ErrorAction 'Stop'
+            foreach($modPathCfg in $ModulePathConfiguration)
+            {
+                $ModuleBuildCfg.Add($modPathCfg)
+                $null = $ModuleDestinationList.Add($modPathCfg.DestinationPath)
+            }
         }
 
-        #Assert PSRepositories
+        # Update PSModulePath environmental variable
+        Add-PSModulePathEntry -Path $ModuleDestinationList -Scope Process -Force
+
+        # Assert PSRepositories
         if ($PSBoundParameters.ContainsKey('PSGetRepository'))
         {
-            #Register PSGetRepo
-            $AssertPSRepository_Params = @{
-                PSGetRepository = $PSGetRepository
-            }
-            if ($PSBoundParameters.ContainsKey('Proxy'))
-            {
-                $AssertPSRepository_Params.Add('Proxy', $Proxy)
-            }
+            $AssertPSRepository_Params = @{ PSGetRepository = $PSGetRepository }
+            if ($PSBoundParameters.ContainsKey('Proxy')) { $AssertPSRepository_Params.Add('Proxy', $Proxy) }
             Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
         }
 
+        # Update Command References Config
+        if($PSBoundParameters.ContainsKey('CheckDuplicateCommandNames'))
+        {
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = ($CheckDuplicateCommandNames.IsPresent)
+        }
+
+        # Update Module References Config
+        if($PSBoundParameters.ContainsKey('UpdateModuleReferences'))
+        {
+            [PSBuild.Context]::Current.UpdateModuleReferences = ($UpdateModuleReferences.IsPresent)
+        }
+        
+        # Update Command References Config
+        if($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration'))
+        {
+            [PSBuild.Context]::Current.CheckCommandReferencesConfiguration = $CheckCommandReferencesConfiguration
+        }
+        
+
+        ### PART 2: Build Cache Data
+
         #Validate All Modules
-        try
+        priv_Build-SolutionModulesCache -BuildConfiguration $ModuleBuildCfg
+
+        priv_Build-CommandsToModuleMapping
+
+
+        ### PART 3: Analyze modules in bulk and find all required modules that are not part of this solution.
+        Write-Verbose -Message "[Build PSModule] Analyzing Module Dependencies..."
+        $SolutionPSGetDependencies = [PSBuild.RequiredModuleSpecsCollection]::new()
+        foreach($ModuleObj in [PSBuild.Context]::Current.SolutionModulesCache)
         {
-            if (-not $PSBoundParameters.ContainsKey('ModuleValidationCache'))
+            $SolutionPSGetDependencies.AddRange($ModuleObj.GetRequiredModules([PSBuild.RequiredModulesFilterOption]::RemoveExternalDependenciesAndKnownSolutionItems))
+        }
+
+        if($SolutionPSGetDependencies.Count -gt 0)
+        {
+            if([PSBuild.Context]::Current.UpdateModuleReferences)
             {
-                [ref]$ModuleValidationCache = @{ }
-            }
-            priv_Validate-Module -SourcePath $SourcePath -ModuleValidationCache $ModuleValidationCache
-        }
-        catch
-        {
-            Write-Error "Unable to validate $moduleName. Details: $_" -ErrorAction 'Stop'
-        }
-
-        #Validate All Commands
-        try
-        {
-            [ref]$CommandsToModuleMapping = [PSBuildEntities.AnalysisResultCollection]::new()
-
-            #Add BuildIn Comands and Aliases to CommandsToModuleMapping (from module 'Microsoft.PowerShell.Core' as they are buildin to PowerShell)
-            Get-Command -Module $PSNativeModules -Verbose:$false | ForEach-Object {
-
-                #Add Command
-                $Command = [PSBuildEntities.AnalysisResult]::new()
-                $Command.CommandName = "$($_.Name)"
-                $Command.CommandType = $_.CommandType
-                if ($Command.CommandType -eq 'Alias')
-                {
-                    try
-                    {
-                        $TempFinding2 = Get-Command -Name $Command.CommandName -ErrorAction Stop -Verbose:$false
-                        $Command.CommandSource = $TempFinding2.Source
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    $Command.CommandSource = $_.Source
-                }
-                $Command.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::BuildIn
-                if (-not $CommandsToModuleMapping.Value.Contains($Command.CommandName))
-                {
-                    $CommandsToModuleMapping.Value.add($Command)
-                }
-
-                #Add Alias if exists
-                Get-Alias -Definition $_.Name -ErrorAction SilentlyContinue | foreach {
-                    $Alias = [PSBuildEntities.AnalysisResult]::new()
-                    $Alias.CommandName = "$($_.Name)"
-                    $Alias.CommandType = 'Alias'
-                    $Alias.CommandSource = $Command.CommandSource
-                    $Alias.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::BuildIn
-                    if (-not $CommandsToModuleMapping.Value.Contains($Alias.CommandName))
-                    {
-                        $CommandsToModuleMapping.Value.add($Alias)
-                    }
-                }
-            }
-
-            #Add Solution Commands to CommandsToModuleMapping (from all modules in the solution)
-            foreach ($Mod in $ModuleValidationCache.Value.Keys)
-            {
-                foreach ($cmd in $ModuleValidationCache.Value[$Mod].ModuleInfo.ExportedCommands.Values)
-                {
-                    $Command = [PSBuildEntities.AnalysisResult]::new()
-                    $Command.CommandName = $cmd.Name
-                    $Command.CommandType = $cmd.CommandType
-                    $Command.CommandSource = $cmd.Source
-                    $Command.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::Solution
-                    if (-not $CommandsToModuleMapping.Value.Contains($cmd.Name))
-                    {
-                        $CommandsToModuleMapping.Value.Add($Command)
-                    }
-                    elseif ($CommandsToModuleMapping.Value[$Command.CommandName].CommandSource -ne $Command.CommandSource)
-                    {
-                        if ($CheckDuplicateCommandNames.IsPresent)
-                        {
-                            Write-Error "Command with name: $($Command.CommandName) is present in multiple modules: $($CommandsToModuleMapping.Value[$Command.CommandName].CommandSource),$($Command.CommandSource)" -ErrorAction Stop
-                        }
-                    }
-                }
-            }
-        }
-        catch
-        {
-            Write-Error "Validate All Commands failed. Details: $_" -ErrorAction 'Stop'
-        }
-
-        #Initialize PSGetModuleValidationCache
-        if (-not $PSBoundParameters.ContainsKey('PsGetModuleValidationCache'))
-        {
-            [ref]$PsGetModuleValidationCache = @{ }
-        }
-
-        #Build Module
-        foreach ($Module in $SourcePath)
-        {
-            $moduleName = $Module.Name
-            if ($ModuleValidationCache.Value[$moduleName].ModuleInfo)
-            {
-                $moduleVersion = $ModuleValidationCache.Value[$moduleName].ModuleInfo.Version
-
-                Write-Verbose "Build PSModule:$moduleName/$moduleVersion started"
-
-                #Check if Module is already built
-                try
-                {
-                    Remove-Variable -Name ModAlreadyBuildTest -ErrorAction SilentlyContinue
-                    $ModuleAlreadyBuild = $false
-                    $ModuleDependanciesValid = $true
-                    $ModuleVersionBuilded = $false
-                    $ModuleBuildDestinationPath = Join-Path -Path $DestinationPath -ChildPath $moduleName -ErrorAction Stop
-                    if (Test-Path -Path $ModuleBuildDestinationPath)
-                    {
-                        $ModAlreadyBuildTest = Test-PSModule -ModulePath $ModuleBuildDestinationPath -ErrorAction Stop
-                    }
-				
-                    #Check if Module with the same version is already builded
-                    if ($ModuleValidationCache.Value[$moduleName].IsValid -and $ModAlreadyBuildTest.IsValid -and ($ModuleValidationCache.Value[$moduleName].ModuleInfo.Version -eq $ModuleValidationCache.Value[$moduleName].ModuleInfo.Version))
-                    {
-                        $ModuleVersionBuilded = $true
-                    }
-
-                    #Check if Module Dependancies are valid versions
-                    foreach ($DepModule in $ModuleValidationCache.Value[$moduleName].ModuleInfo.RequiredModules)
-                    {
-                        $depModuleName = $DepModule.Name
-                        $depModuleVersion = $DepModule.Version
-                        $DepModuleDestinationPath = Join-Path -Path $DestinationPath -ChildPath $depModuleName -ErrorAction Stop
-
-                        #Check if DepModule is marked as ExternalModuleDependency
-                        if ($ModuleValidationCache.Value[$moduleName].ModuleInfo.PrivateData.PSData.ExternalModuleDependencies -contains $depModuleName)
-                        {
-                            #Skip this DepModule from validation, as it is marked as external
-                        }
-                        #Check if DepModule is in the same Solution
-                        elseif (($ModuleValidationCache.Value).ContainsKey($depModuleName))
-                        {
-                            if ($ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version -gt $depModuleVersion -or (-not $ModuleValidationCache.Value[$depModuleName].IsValid))
-                            {
-                                $ModuleDependanciesValid = $false
-                            }
-                        }
-                        #Check if DepModule is in PSGetRepositories
-                        elseif ($PSBoundParameters.ContainsKey('PSGetRepository'))
-                        {
-                            #Check for Module in all Nuget Repos
-                            Remove-Variable -Name NugetDependencyList -ErrorAction SilentlyContinue
-                            $NugetDependencyList = New-Object -TypeName System.Collections.ArrayList
-                            foreach ($item in $PSGetRepository)
-                            {
-                                #Search for module
-                                if (-not $PsGetModuleValidationCache.Value.ContainsKey($depModuleName))
-                                {
-                                    $PSGet_Params = @{
-                                        Name       = $depModuleName
-                                        Repository = $item.Name
-                                    }
-                                    if (-not $UpdateModuleReferences.IsPresent)
-                                    {
-                                        $PSGet_Params.Add('RequiredVersion', $depModuleVersion)
-                                    }
-                                    if ($item.ContainsKey('Credential'))
-                                    {
-                                        $PSGet_Params.Add('Credential', $item.Credential)
-                                    }
-                                    try
-                                    {
-                                        Remove-Variable -Name NugetDependency -ErrorAction SilentlyContinue
-                                        $private:NugetDependency = Find-Module @PSGet_Params -ErrorAction Stop
-                                    }
-                                    catch
-                                    {
-
-                                    }
-                                    #Add module to PsGetModuleValidationCache
-                                    if ($private:NugetDependency)
-                                    {
-                                        $AddMember_Params = @{
-                                            InputObject = $private:NugetDependency
-                                            MemberType  = 'NoteProperty'
-                                            Name        = 'PSGetRepoPriority'
-                                        }
-                                        if ($item.Priority)
-                                        {
-                                            $AddMember_Params.Add('Value', $item.Priority)
-                                        }
-                                        else
-                                        {
-                                            $AddMember_Params.Add('Value', 0)
-                                        }
-                                        $null = Add-Member @AddMember_Params -ErrorAction Stop
-                                        $null = $NugetDependencyList.Add($private:NugetDependency)
-                                    }
-                                }
-                            }
-                            #Get Latest Version if multiple are present
-                            if ($NugetDependencyList)
-                            {
-                                Remove-Variable -Name NugetDepToADD -ErrorAction SilentlyContinue
-                                $NugetDepToADD = $NugetDependencyList | Sort-Object -Property Version -Descending | Sort-Object -Property PSGetRepoPriority | select -First 1
-                                $null = $PsGetModuleValidationCache.Value.Add($depModuleName, $NugetDepToADD)
-                            }
-								
-                            #Check if DepModule ref version is the latest
-                            if ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName) -and ($PsGetModuleValidationCache.Value[$depModuleName].Version -gt $depModuleVersion))
-                            {
-                                Write-Warning "Build PSModule:$moduleName/$moduleVersion in progress. PsGet Dependancy: $depModuleName/$depModuleVersion is not the latest version"
-                                if ($UpdateModuleReferences.IsPresent)
-                                {
-                                    $ModuleDependanciesValid = $false
-                                }
-                            }
-                        }
-                        #Check If Module Dependency is already builded
-                        elseif (Test-Path -Path $DepModuleDestinationPath)
-                        {
-                            try
-                            {
-                                $Mod = Test-PSModule -ModulePath $DepModuleDestinationPath -ErrorAction Stop
-                                if ($Mod.ModuleInfo.Version -lt $depModuleVersion)
-                                {
-                                    $ModuleDependanciesValid = $false
-                                }
-                            }
-                            catch
-                            {
-
-                            }
-                        }
-                        else
-                        {
-                            $ModuleDependanciesValid = $false
-                        }
-                    }
-
-                    #Determine if module should be built
-                    if ($ModuleDependanciesValid -and $ModuleVersionBuilded)
-                    {
-                        $ModuleAlreadyBuild = $true
-                    }
-                }
-                catch
-                {
-
-                }
-
-                #Build Module if not already built
-                if ($ModuleAlreadyBuild)
-                {
-                    Write-Verbose "Build PSModule:$moduleName/$moduleVersion skipped, already built"
-                }
-                else
-                {
-                    #Build Module Dependancies
-                    try
-                    {
-                        #Resolve Dependancies
-                        if ($ResolveDependancies.IsPresent)
-                        {
-                            $Dependancies = $ModuleValidationCache.Value[$moduleName].ModuleInfo.RequiredModules | Where-Object { $ModuleValidationCache.Value[$moduleName].ModuleInfo.PrivateData.PSData.ExternalModuleDependencies -notcontains $_.Name }
-                            foreach ($ModDependency in $Dependancies)
-                            {
-                                $dependantModuleName = $ModDependency.Name
-                                $dependantModuleVersion = $ModDependency.Version
-
-                                Write-Verbose "Build PSModule:$moduleName/$moduleVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion started"
-                                $ModDependencyFound = $false
-                                #Search for module in the Solution
-                                if (-not $ModDependencyFound)
-                                {
-                                    if (($ModuleValidationCache.Value).ContainsKey($dependantModuleName) -and ($ModuleValidationCache.Value[$dependantModuleName].ModuleInfo.Version -ge $dependantModuleVersion))
-                                    {
-                                        $BuildPSModule_Params = @{
-                                            SourcePath            = $ModuleValidationCache.Value[$dependantModuleName].ModuleInfo.ModuleBase
-                                            DestinationPath       = $DestinationPath
-                                            ResolveDependancies   = $ResolveDependancies 
-                                            ModuleValidationCache = $ModuleValidationCache
-                                        }
-                                        if ($PSBoundParameters.ContainsKey('PSGetRepository'))
-                                        {
-                                            $BuildPSModule_Params.Add('PSGetRepository', $PSGetRepository)
-                                        }
-                                        if ($PSBoundParameters.ContainsKey('Proxy'))
-                                        {
-                                            $BuildPSModule_Params.Add('Proxy', $Proxy)
-                                        }
-
-                                        Build-PSModule @BuildPSModule_Params -ErrorAction Stop
-                                        $ModDependencyFound = $true
-                                    }
-                                }
-
-                                #Search for module in Solution PSGetRepositories
-                                if ((-not $ModDependencyFound) -and ($PsGetModuleValidationCache.Value.ContainsKey($dependantModuleName)) -and ($PSBoundParameters.ContainsKey('PSGetRepository')))
-                                {
-                                    $NuGetDependancyHandle = $PsGetModuleValidationCache.Value[$dependantModuleName]
-                                    #Check if NugetPackage is already downloaded
-                                    try
-                                    {
-                                        $ModDependencyExcepctedPath = Join-Path -Path $DestinationPath -ChildPath $dependantModuleName -ErrorAction Stop
-                                        Remove-Variable -Name ModDependencyExist -ErrorAction SilentlyContinue
-                                        $ModDependencyExist = Get-Module -ListAvailable -FullyQualifiedName $ModDependencyExcepctedPath -Refresh -ErrorAction Stop -Verbose:$false
-                                    }
-                                    catch
-                                    {
-
-                                    }
-                                    if (($ModDependencyExist) -and ($ModDependencyExist.Version -eq $NuGetDependancyHandle.Version))
-                                    {
-                                        #NugetPackage already downloaded
-                                    }
-                                    else
-                                    {
-                                        #Determine from which repo to download the module
-                                        Remove-Variable -Name ModuleRepo -ErrorAction SilentlyContinue
-                                        $ModuleRepo = $PSGetRepository | Where-Object { $_.Name -eq ($NuGetDependancyHandle.Repository) }
-
-                                        #Downloading NugetPackage
-                                        Write-Verbose "Build PSModule:$moduleName/$moduleVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion in progress. Downloading PSGetPackage: $($NuGetDependancyHandle.Name)/$($NuGetDependancyHandle.Version)"
-                                        if (-not (Test-Path $DestinationPath))
-                                        {
-                                            $null = New-Item -Path $DestinationPath -ItemType Directory -ErrorAction Stop
-                                        }
-                                        $PSGet_Params = @{
-                                            Name            = $dependantModuleName
-                                            Repository      = $ModuleRepo.Name
-                                            RequiredVersion = $NuGetDependancyHandle.Version
-                                            Path            = $DestinationPath
-                                        }
-                                        if ($ModuleRepo.ContainsKey('Credential'))
-                                        {
-                                            $PSGet_Params.Add('Credential', $ModuleRepo.Credential)
-                                        }
-                                        if ($ModuleRepo.ContainsKey('Proxy'))
-                                        {
-                                            $PSGet_Params.Add('Proxy', $Proxy)
-                                        }
-                                        Save-Module @PSGet_Params -ErrorAction Stop -Verbose:$false
-                                    }
-                                    $ModDependencyFound = $true
-                                }
-
-                                #Throw Not Found
-                                if ($ModDependencyFound)
-                                {
-                                    Write-Verbose "Build PSModule:$moduleName/$moduleVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion completed"
-                                }
-                                else 
-                                {
-                                    throw "Dependand module: $dependantModuleName/$dependantModuleVersion not found"
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        Write-Error "Build PSModule:$moduleName/$moduleVersion dependancies failed. Details: $_"
-                    }
-
-                    #Build Module
-                    try
-                    {
-                        #Update Module Dependancies definition
-                        if (-not $ModuleDependanciesValid)
-                        {
-                            Write-Warning "Build PSModule:$moduleName/$moduleVersion in progress. RequiredModules specification not valid, updating it..."
-                            $ModuleDependanciesDefinition = New-Object -TypeName system.collections.arraylist
-                            foreach ($DepModule in $ModuleValidationCache.Value[$moduleName].ModuleInfo.RequiredModules)
-                            {
-                                $depModuleName = $DepModule.Name
-                                $depModuleVersion = $DepModule.Version
-
-                                if (($ModuleValidationCache.Value).ContainsKey($depModuleName))
-                                {
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Name
-                                            ModuleVersion = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version
-                                        })
-                                    $null = $ModuleDependanciesDefinition.Add($ModSpec)
-                                }
-                                elseif ($PsGetModuleValidationCache.Value.ContainsKey($depModuleName))
-                                {
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $PsGetModuleValidationCache.Value[$depModuleName].Name
-                                            ModuleVersion = $PsGetModuleValidationCache.Value[$depModuleName].Version
-                                        })
-                                    $null = $ModuleDependanciesDefinition.Add($ModSpec)
-                                }
-                                else
-                                {
-                                    if (Test-Path $DepModule.Path)
-                                    {
-                                        $tempDepModuleName = $DepModule.Path
-                                    }
-                                    else
-                                    {
-                                        $tempDepModuleName = $DepModule.Name
-                                    }
-									
-                                    $ModSpec = [Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
-                                            ModuleName    = $tempDepModuleName
-                                            ModuleVersion = $DepModule.Version
-                                        })
-                                    $null = $ModuleDependanciesDefinition.Add($ModSpec)
-                                }
-                            }
-                            if ($ModuleDependanciesDefinition.Count -gt 0)
-                            {
-                                Update-ModuleManifest -Path $ModuleValidationCache.Value[$moduleName].ModuleInfo.Path -RequiredModules $ModuleDependanciesDefinition -ErrorAction Stop
-                            }
-                        }
-
-                        #Check Module Dependancies
-                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $ModuleValidationCache.Value[$moduleName].IsVersionValid)) 
-                        {
-                            #if Module is Excluded in CheckCommandReferencesConfiguration
-                            if ($CheckCommandReferencesConfiguration.ExcludedSources -contains $moduleName)
-                            {
-                                Write-Warning "Build PSModule:$moduleName/$moduleVersion in progress. Skipping CommandReference validation"
-                            }
-                            #if Module is not Excluded in CheckCommandReferencesConfiguration
-                            else
-                            {
-                                #Analyze Command references
-                                $CurrentRequiredModules = $PSNativeModules + $ModuleValidationCache.Value[$moduleName].ModuleInfo.RequiredModules.Name
-                                $priv_AnalyseItemDependancies_Params = @{
-                                    ModulePath            = $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase
-                                    GlobalCommandAnalysis = $CommandsToModuleMapping
-                                    CurrentDependancies   = $CurrentRequiredModules
-                                }
-                                if ($PSBoundParameters.ContainsKey('PSGetRepository'))
-                                {
-                                    $priv_AnalyseItemDependancies_Params.Add('PSGetRepository', $PSGetRepository)
-                                }
-                                if ($PSBoundParameters.ContainsKey('Proxy'))
-                                {
-                                    $priv_AnalyseItemDependancies_Params.Add('Proxy', $Proxy)
-                                }
-                                $LocalCommandAnalysis = priv_Analyse-ItemDependancies @priv_AnalyseItemDependancies_Params -ErrorAction Stop
-                                $CommandNotReferenced = $LocalCommandAnalysis | Where-Object { $_.IsReferenced -eq $false -and $_.CommandType -ne 'Application' }
-
-                                #Check if command is in CheckCommandReferencesConfiguration.ExcludedCommands list
-                                if ($CheckCommandReferencesConfiguration.ExcludedCommands.Count -gt 0)
-                                {
-                                    $CommandNotReferenced = $CommandNotReferenced | Where-Object { $CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $_.CommandName }
-                                }
-
-                                if ($CommandNotReferenced)
-                                {
-                                    throw "Missing RequiredModule reference for [Module\Command]: $($CommandNotReferenced.GetCommandFQDN() -join ', ')"
-                                }
-                            }
-                        }
-
-                        #Check Module Integrity
-                        if (-not $ModuleValidationCache.Value[$moduleName].IsReadyForPackaging)
-                        {
-                            throw "Not ready for packaging. Missing either Author or Description."
-                        }
-                        if (-not $ModuleValidationCache.Value[$moduleName].IsValid)
-                        {
-                            Write-Warning "Build PSModule:$moduleName/$moduleVersion in progress. Not valid, updating version..."
-                            Update-PSModuleVersion -ModulePath $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase -ErrorAction Stop
-						
-                            #Refresh ModuleValidation
-                            $ModuleValidationCache.Value[$moduleName] = Test-PSModule -ModulePath $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase -ErrorAction Stop
-                        }
-
-                        #Export Module to DestinationPath
-                        try
-                        {
-                            priv_Export-Artifact -Type Module -SourcePath $ModuleValidationCache.Value[$moduleName].ModuleInfo.ModuleBase -Version $ModuleValidationCache.Value[$moduleName].ModuleInfo.Version -DestinationPath $DestinationPath -Verbose:$false
-                        }
-                        catch
-                        {
-                            throw "failed to copy module to $DestinationPath. details: $_"
-                        }
-                    }
-                    catch
-                    {
-                        Write-Error "Build PSModule:$moduleName/$moduleVersion failed. Details: $_" -ErrorAction 'Stop'
-                    }
-                }
-
-                Write-Verbose "Build PSModule:$moduleName/$moduleVersion completed"
+                $SolutionPSGetDependencies = $SolutionPSGetDependencies.GetLatestModuleVersions()
             }
             else
             {
-                Write-Error "Build PSModule:$moduleName failed. Missing ModuleInfo." -ErrorAction Stop
+                $SolutionPSGetDependencies = $SolutionPSGetDependencies.GetUniqueModuleVersions()
             }
+
+            Write-Verbose -Message "[Build PSModule] Detected $($SolutionPSGetDependencies.Count) required modules outside solution. Searching Repositories..."
+
+            if (!$PSBoundParameters.ContainsKey('PSGetRepository'))
+            {
+                throw "Cannot resolve dependencies. It appears that some modules are not part of the solution but there were no specified search repositories from which to download them."
+            }
+
+            $SaveRequiredModules_Params = @{
+                RequiredModules = $SolutionPSGetDependencies
+                PSGetRepository = $PSGetRepository
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy')) { $SaveRequiredModules_Params.Add('Proxy', $Proxy) }
+            priv_Save-RequiredNugetModules @SaveRequiredModules_Params
+        }
+        
+
+        ### PART 4: Build Local Modules. The processing order ensures dependencies are built first.
+        Write-Verbose -Message "[Build PSModule] Building Local Solution Modules..."
+        foreach ($ModuleObj in [PSBuild.Context]::Current.SolutionModulesCache.GetOrderedProcessingList())
+        {
+            # PART 4-a: Analyze Required Modules
+            # This time we expect that all required modules have already been downloaded from repos or built in advance
+            # If a required module is not at the target build location, there is an unresolvable dependency and the process stops.
+            Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Validating Dependencies"
+            foreach($requiredModule in $ModuleObj.GetRequiredModules([PSBuild.RequiredModulesFilterOption]::RemoveExternalDependencies))
+            {
+                if([PSBuild.Context]::Current.BuiltModulesCache.Contains(@{ Name=$requiredModule.Name; DestinationPath=$requiredModule.TargetDirectory }))
+                {
+                    # Already built
+                    # At this point the built module may be the same version or newer
+                }
+                else
+                {
+                    $TargetBuildPath = [IO.Path]::Combine($requiredModule.TargetDirectory, $requiredModule.Name)
+                    $ExistingModuleTest = $null
+                    $ExistingModuleTest = priv_Test-Module -ModulePath $TargetBuildPath
+                    
+                    if($ExistingModuleTest.IsModule -and ($ExistingModuleTest.ModuleInfo.Version -ge $requiredModule.Version))
+                    {
+                        if($ExistingModuleTest.SupportVersonControl -and (-not ($ExistingModuleTest.IsVersionValid)))
+                        {
+                            # The same warning as in Step 2. Assumption is it was manually placed there or built in another process, so show the warning again:
+                            Write-Warning -Message "$ExistingModuleTest was found in the target build location but it was detected that there are inconsistencies with the module's version control. Make sure the module is valid."
+                        }
+
+                        [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ExistingModuleTest.ModuleName, $ExistingModuleTest.ModuleInfo.Version, $null, $requiredModule.TargetDirectory))
+                    }
+                    elseif([PSBuild.Context]::Current.SolutionModulesCache.Contains($requiredModule.Name))
+                    {
+                        # This is usually caused by a circular dependency. The Solution Modules are processed in order which ensures all required modules are built in advance.
+                        # If this module is missing, the dependency tree is invalid
+                        throw "Build module $ModuleObj failed. Cannot resolve module dependencies. The required module $requiredModule was not found in the build directory. This problem may be caused by a circular dependency."
+                    }
+                    else
+                    {
+                        # Note that this is a required module, not found in the solution and not found in the ps repos.
+                        # This was a best effort attempt to find it in the build directory and use it.
+                        throw "Build module $ModuleObj failed. Cannot resolve module dependencies. The required module $requiredModule is not part of the solution and was not found in any of the provided repositories."
+                    }
+                }
+            }
+
+
+            # PART 4-b: Update Required Modules versions in the Module Manifest
+            Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Validating Required Module Versions"
+            $ModuleDependanciesDefinition = New-Object -TypeName System.Collections.ArrayList
+            $UpdateModuleManifestRequired = $false
+            foreach($requiredModule in $ModuleObj.ModuleInfo.RequiredModules)
+            {
+                $shouldUpdateVersion = $false
+                $latestVersion = $null
+                $reqModuleName = $requiredModule.Name
+
+                if([PSBuild.Context]::Current.BuiltModulesCache.Contains($requiredModule.Name))
+                {
+                    $latestVersion = [PSBuild.Context]::Current.BuiltModulesCache.GetLatestVersion($requiredModule.Name)
+
+                    if(($requiredModule.Version -lt $latestVersion.Version) -and ([PSBuild.Context]::Current.UpdateModuleReferences -or [PSBuild.Context]::Current.SolutionModulesCache.Contains($requiredModule.Name)))
+                    {
+                        $shouldUpdateVersion = $true
+                    }
+                }
+                elseif([PSBuild.Context]::Current.ExternalModulesCache.Contains($requiredModule.Name))
+                {
+                    $latestVersion = [PSBuild.Context]::Current.ExternalModulesCache.GetLatestVersion($requiredModule.Name)
+
+                    if($requiredModule.Version -lt $latestVersion.Version)
+                    {
+                        Write-Warning -Message "Module $ModuleObj depends on $requiredModule which is not part of this solution. $($requiredModule.Name) has a newer version ($($latestVersion.Version)) and the required module reference will be updated."
+                        $shouldUpdateVersion = $true
+                    }
+
+                    if(-not ($latestVersion.IsPortableModule))
+                    {
+                        $reqModuleName = $latestVersion.DestinationPath
+                    }
+                }
+                else
+                {
+                    throw "Required module $($requiredModule.Name) was not found in either the Built Modules Cache or the External Modules Cache. This should not be possible but you still did it! Congrats!"
+                }
+                
+
+                if($shouldUpdateVersion)
+                {
+                    $null = $ModuleDependanciesDefinition.Add([Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
+                        ModuleName    = $reqModuleName
+                        ModuleVersion = $latestVersion.Version
+                    }))
+                    Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Required Module '$($requiredModule.Name)/$($requiredModule.Version)' has a newer version ($($latestVersion.Version))"
+                    $UpdateModuleManifestRequired = $true
+                }
+                else
+                {
+                    $null = $ModuleDependanciesDefinition.Add([Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
+                        ModuleName    = $reqModuleName
+                        ModuleVersion = $requiredModule.Version
+                    }))
+                }
+            }
+
+            if ($UpdateModuleManifestRequired)
+            {
+                Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Updating Module Manifest"
+
+                $currentVerbosePreference = $VerbosePreference
+                $VerbosePreference = 'SilentlyContinue'
+
+                Update-ModuleManifest -Path ($ModuleObj.ModuleInfo.Path) -RequiredModules $ModuleDependanciesDefinition -ErrorAction Stop -Verbose:$false
+
+                $VerbosePreference = $currentVerbosePreference
+            }
+
+
+            ### PART 4-c: Check if all commands are referenced
+            if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.Enabled)
+            {
+                # Update Module Definition. This is required in order to extract all commands used inside the module
+                # Note that this is required independent of the fact that the module may be in the exclusion list because there may be another module which depends on this module and its validations will fail
+                Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Reading Module AST"
+                $modDefiniton = priv_Get-ModuleDefinition -ModulePath ($ModuleObj.SourceDirectory) -DestinationPath $ModuleDestinationList -ProactiveRequiredModuleLoading ($ModuleObj.PreferredProcessingOrder -gt 2)
+                $ModuleObj.UpdateModuleDefinitionAst($modDefiniton)
+
+                if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.ExcludedSources -notcontains ($ModuleObj.ModuleName))
+                {
+                    Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Checking if all commands are referenced"
+                    foreach($NonLocalCommand in $ModuleObj.GetNonLocalCommands())
+                    {
+                        if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $NonLocalCommand)
+                        {
+                            if([PSBuild.Context]::Current.CommandsToModuleMapping.ContainsCommand($NonLocalCommand))  
+                            {
+                                $cmdIsReferenced = $false
+                                foreach($cmdSrc in ([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand)))
+                                {
+                                    if(($cmdSrc.SourceLocation -eq [PSBuild.CommandSourceLocation]::BuiltIn) -or 
+                                       ($ModuleObj.GetRequiredModules([PSBuild.RequiredModulesFilterOption]::FindAll).Name -contains $cmdSrc.Source))
+                                    {
+                                        # Module is either BuiltIn or explicitly referenced
+                                        $cmdIsReferenced = $true
+                                        break
+                                    }
+                                }
+
+                                if(-not $cmdIsReferenced)
+                                {
+                                    if([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand).Count -gt 1)
+                                    {
+                                        throw "Build Module '$ModuleObj' failed. The command '$NonLocalCommand' was found in modules $(@([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand).ForEach{ "'$($_.Source)'" }) -join ', ') but neither is referenced in the module manifest."
+                                    }
+                                    else
+                                    {
+                                        throw "Build Module '$ModuleObj' failed. The command '$NonLocalCommand' was found in module '$([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand)[0].Source)' but it is not referenced in the module manifest."
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                throw "Build Module '$ModuleObj' failed. The command '$NonLocalCommand' was not found in any of the required modules referenced in the module manifest."
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            ### PART 4-d: Check Module Integrity
+            if (-not $ModuleObj.IsReadyForPackaging)
+            {
+                throw "Build Module '$ModuleObj' failed. The module is not ready for packaging. Missing either Author or Description."
+            }
+
+            if (-not $ModuleObj.IsValid)
+            {
+                ## NOTE: This also updates the file hash
+                Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Updating Module Version"
+
+                $currentVerbosePreference = $VerbosePreference
+                $VerbosePreference = 'SilentlyContinue'
+
+                $oldModuleVer = $ModuleObj.ModuleInfo.Version
+                Update-PSModuleVersion -ModulePath ($ModuleObj.SourceDirectory) -ErrorAction Stop -Verbose:$false
+						
+                #Refresh ModuleValidation
+                $ModuleObj.Update($(priv_Test-Module -ModulePath ($ModuleObj.SourceDirectory) -ErrorAction Stop))
+                Write-Warning -Message "[Build PSModule] Processing $ModuleObj -> Updated module from version $($oldModuleVer) to version $($ModuleObj.ModuleInfo.Version)"
+
+                $VerbosePreference = $currentVerbosePreference
+            }
+
+
+            ### PART 4-e: Export Module to DestinationPath
+            Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> Exporting Module"
+
+            try
+            {
+                priv_Export-Artifact -Type Module -SourcePath ($ModuleObj.SourceDirectory) -Version ($ModuleObj.ModuleInfo.Version) -DestinationPath ($ModuleObj.TargetDirectory) -Verbose:$false
+                [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ModuleObj.ModuleName, $ModuleObj.ModuleInfo.Version, $ModuleObj.SourceDirectory, $ModuleObj.TargetDirectory))
+            }
+            catch
+            {
+                throw "Build Module '$ModuleObj' failed. Cannot copy module to '$DestinationPath'. details: $_"
+            }
+
+            Write-Verbose -Message "[Build PSModule] Processing $ModuleObj -> DONE"
         }
     }
 }
@@ -1278,16 +1742,20 @@ function Build-PSScript
     param
     (
         #SourcePath
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'BySourceAndDestinationPaths')]
         [System.IO.FileInfo[]]$SourcePath,
 
         #DestinationPath
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $false, ParameterSetName = 'BySourceAndDestinationPaths')]
         [System.IO.DirectoryInfo]$DestinationPath,
 
         #DependencyDestinationPath
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $false, ParameterSetName = 'BySourceAndDestinationPaths')]
         [System.IO.DirectoryInfo]$DependencyDestinationPath,
+
+        #ModulePathConfiguration
+        [Parameter(Mandatory = $true, ParameterSetName = 'ByModulePathConfiguration')]
+        [PSBuild.PSScriptBuildInfo[]]$ScriptPathConfiguration,
 
         #UseScriptConfigFile
         [Parameter(Mandatory = $false)]
@@ -1299,7 +1767,7 @@ function Build-PSScript
 
         #CheckCommandReferencesConfiguration
         [Parameter(Mandatory = $false)]
-        [CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration = ([CheckCommandReferencesConfiguration]::new()),
+        [PSBuild.CheckCommandReferencesConfiguration]$CheckCommandReferencesConfiguration,
 
         #UpdateModuleReferences
         [Parameter(Mandatory = $false)]
@@ -1309,14 +1777,6 @@ function Build-PSScript
         [Parameter(Mandatory = $false)]
         [hashtable[]]$PSGetRepository,
 
-        #ModuleValidation
-        [Parameter(Mandatory = $false)]
-        [ref]$ModuleValidationCache = [ref]@{ },
-
-        #PsGetModuleValidation
-        [Parameter(Mandatory = $false)]
-        [ref]$PsGetModuleValidationCache,
-
         #Proxy
         [Parameter(Mandatory = $false)]
         [uri]$Proxy
@@ -1324,686 +1784,397 @@ function Build-PSScript
     
     Process
     {
-        if ($ResolveDependancies.IsPresent)
+        ### PART 1: Prerequisites
+        Write-Verbose -Message "[Build PSScript] Preparing Prerequisites..."
+
+        $ScriptBuildCfg = [PSBuild.PSScriptBuildInfoCollection]::new()
+        $ModuleDestinationList = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        if($PsCmdlet.ParameterSetName -eq 'BySourceAndDestinationPaths')
         {
-            if (-not $PSBoundParameters.ContainsKey('DependencyDestinationPath'))
+            if(($ResolveDependancies.IsPresent) -and [String]::IsNullOrEmpty($DestinationPath.FullName) -and [String]::IsNullOrEmpty($DependencyDestinationPath.FullName))
             {
-                if ($PSBoundParameters.ContainsKey('DestinationPath'))
-                {
-                    $DependencyDestinationPath = $DestinationPath
-                }
-                else
-                {
-                    throw "Either 'DependencyDestinationPath' or 'DestinationPath' should be specified in combination with 'ResolveDependancies'"
-                }
+                throw "Build Solution Scripts failed. The Solution Configuration is invalid. ScriptPath requires you to specify at least one of the following properties: BuildPath, DependencyDestinationPath."
             }
 
-            #Add DependencyDestinationPath to Process PSModulePath
-            try
+            foreach($srcPath in $SourcePath)
             {
-                Add-PSModulePathEntry -Path $DependencyDestinationPath -Scope Process -Force
+                $ScriptBuildCfg.Add([PSBuild.PSScriptBuildInfo]::new(@{
+                    Name                           = $srcPath.Name
+                    SourcePath                     = $srcPath.FullName
+                    DestinationPath                = $DestinationPath.FullName
+                    RequiredModulesDestinationPath = $(if($DependencyDestinationPath.FullName) {$DependencyDestinationPath.FullName} else {$DestinationPath.FullName})
+                }))
             }
-            catch
+
+            if($DestinationPath.FullName) { $null = $ModuleDestinationList.Add($DestinationPath.FullName) }
+            if($DependencyDestinationPath.FullName) { $null = $ModuleDestinationList.Add($DependencyDestinationPath.FullName) }
+        }
+        else
+        {
+            foreach($scrPathCfg in $ScriptPathConfiguration)
             {
-                Write-Error "Add DependencyDestinationPath to Process PSModulePath failed. Details: $_" -ErrorAction 'Stop'
+                $ScriptBuildCfg.Add($scrPathCfg)
+                if($scrPathCfg.DestinationPath) { $null = $ModuleDestinationList.Add($scrPathCfg.DestinationPath) }
+                if($scrPathCfg.RequiredModulesDestinationPath) { $null = $ModuleDestinationList.Add($scrPathCfg.RequiredModulesDestinationPath) }
             }
         }
-        
-        #Assert PSRepositories
+
+        # Update PSModulePath environmental variable
+        if($ResolveDependancies.IsPresent)
+        {
+            Add-PSModulePathEntry -Path $ModuleDestinationList -Scope Process -Force
+        }
+
+        # Assert PSRepositories
         if ($PSBoundParameters.ContainsKey('PSGetRepository'))
         {
-            #Register PSGetRepo
-            $AssertPSRepository_Params = @{
-                PSGetRepository = $PSGetRepository
-            }
-            if ($PSBoundParameters.ContainsKey('Proxy'))
-            {
-                $AssertPSRepository_Params.Add('Proxy', $Proxy)
-            }
+            $AssertPSRepository_Params = @{ PSGetRepository = $PSGetRepository }
+            if ($PSBoundParameters.ContainsKey('Proxy')) { $AssertPSRepository_Params.Add('Proxy', $Proxy) }
             Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
         }
 
-        #Validate All Scripts
-        try
+        # Update Command References Config
+        if($PSBoundParameters.ContainsKey('CheckDuplicateCommandNames'))
         {
-            if (-not ($AllScriptValidation))
-            {
-                $AllScriptValidation = @{ }
-                foreach ($Script in $SourcePath)
-                {
-                    $scriptName = $Script.BaseName
-                    $scriptFilePath = $script.FullName
-                    if (-not $AllScriptValidation.ContainsKey($scriptFilePath))
-                    {
-                        Remove-variable -name PSScriptValidation -ErrorAction SilentlyContinue
-                        $TestPSScript_Params = @{
-                            ScriptPath = $Script.FullName
-                        }
-                        if ($UseScriptConfigFile.IsPresent)
-                        {
-                            $TestPSScript_Params.Add('UseScriptConfigFile', $true)
-                        }
-                        $PSScriptValidation = Test-PSScript @TestPSScript_Params -ErrorAction Stop
-                        
-                        $null = $AllScriptValidation.Add($scriptFilePath, $PSScriptValidation)
-                    }
-                }
-            }
-        }
-        catch
-        {
-            Write-Error "Unable to validate $scriptName. Details: $_" -ErrorAction 'Stop'
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = ($CheckDuplicateCommandNames.IsPresent)
         }
 
-        #Validate All Commands
-        try
+        # Update Module References Config
+        if($PSBoundParameters.ContainsKey('UpdateModuleReferences'))
         {
-            [ref]$CommandsToModuleMapping = [PSBuildEntities.AnalysisResultCollection]::new()
-
-            #Add BuildIn Comands and Aliases to CommandsToModuleMapping (from module 'Microsoft.PowerShell.Core' as they are buildin to PowerShell)
-            Get-Command -Module $PSNativeModules -Verbose:$false | ForEach-Object {
-
-                #Add Command
-                $Command = [PSBuildEntities.AnalysisResult]::new()
-                $Command.CommandName = "$($_.Name)"
-                $Command.CommandType = $_.CommandType
-                if ($Command.CommandType -eq 'Alias')
-                {
-                    try
-                    {
-                        $TempFinding2 = Get-Command -Name $Command.CommandName -ErrorAction Stop -Verbose:$false
-                        $Command.CommandSource = $TempFinding2.Source
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    $Command.CommandSource = $_.Source
-                }
-                $Command.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::BuildIn
-                if (-not $CommandsToModuleMapping.Value.Contains($Command.CommandName))
-                {
-                    $CommandsToModuleMapping.Value.add($Command)
-                }
-
-                #Add Alias if exists
-                Get-Alias -Definition $_.Name -ErrorAction SilentlyContinue | foreach {
-                    $Alias = [PSBuildEntities.AnalysisResult]::new()
-                    $Alias.CommandName = "$($_.Name)"
-                    $Alias.CommandType = 'Alias'
-                    $Alias.CommandSource = $Command.CommandSource
-                    $Alias.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::BuildIn
-                    if (-not $CommandsToModuleMapping.Value.Contains($Alias.CommandName))
-                    {
-                        $CommandsToModuleMapping.Value.add($Alias)
-                    }
-                }
-            }
-
-            #Add Solution Commands to CommandsToModuleMapping (from all modules in the solution)
-            if ($PSBoundParameters.ContainsKey('ModuleValidationCache'))
-            {
-                foreach ($Mod in $ModuleValidationCache.Value.Keys)
-                {
-                    foreach ($cmd in $ModuleValidationCache.Value[$Mod].ModuleInfo.ExportedCommands.Values)
-                    {
-                        $Command = [PSBuildEntities.AnalysisResult]::new()
-                        $Command.CommandName = $cmd.Name
-                        $Command.CommandType = $cmd.CommandType
-                        $Command.CommandSource = $cmd.Source
-                        $Command.SourceLocation = [PSBuildEntities.AnalysisResultSourceLocation]::Solution
-                        if (-not $CommandsToModuleMapping.Value.Contains($cmd.Name))
-                        {
-                            $CommandsToModuleMapping.Value.Add($Command)
-                        }
-                        elseif ($CommandsToModuleMapping.Value[$Command.CommandName].CommandSource -ne $Command.CommandSource)
-                        {
-                            if ($CheckDuplicateCommandNames.IsPresent)
-                            {
-                                Write-Error "Command with name: $($Command.CommandName) is present in multiple modules: $($CommandsToModuleMapping.Value[$Command.CommandName].CommandSource),$($Command.CommandSource)" -ErrorAction Stop
-                            }
-                        }
-                    }
-                }
-            }
+            [PSBuild.Context]::Current.UpdateModuleReferences = ($UpdateModuleReferences.IsPresent)
         }
-        catch
+        
+        # Update Command References Config
+        if($PSBoundParameters.ContainsKey('CheckCommandReferencesConfiguration'))
         {
-            Write-Error "Validate All Commands failed. Details: $_" -ErrorAction 'Stop'
+            [PSBuild.Context]::Current.CheckCommandReferencesConfiguration = $CheckCommandReferencesConfiguration
         }
+        
 
-        #Initialize PSGetModuleValidationCache
-        if (-not $PSBoundParameters.ContainsKey('PsGetModuleValidationCache'))
+        ### PART 2: Build Cache Data
+        Write-Verbose -Message "[Build PSScript] Building Solution Scripts Cache..."
+        priv_Build-SolutionScriptsCache -BuildConfiguration $ScriptBuildCfg -UseScriptConfigFile:($UseScriptConfigFile.IsPresent)
+
+
+        ### PART 3: Analyze Dependencies
+        Write-Verbose -Message "[Build PSScript] Analyzing Dependencies..."
+
+        $SolutionPSGetDependencies = [PSBuild.RequiredModuleSpecsCollection]::new()
+        $ExternalModuleDependencies = [PSBuild.RequiredModuleSpecsCollection]::new()
+
+        foreach($ScriptObj in [PSBuild.Context]::Current.SolutionScriptsCache)
         {
-            [ref]$PsGetModuleValidationCache = @{ }
-        }
-
-        #Build Script
-        foreach ($Script in $SourcePath)
-        {
-            $scriptName = $Script.BaseName
-            $scriptFilePath = $script.FullName
-
-            #Get ScriptRequiredModules_All and ScriptRequiredModules_NotExternal
-            Remove-Variable -Name ScriptRequiredModules -ErrorAction SilentlyContinue
-            Remove-Variable -Name ScriptRequiredModules_NotExternal -ErrorAction SilentlyContinue
-            if ($UseScriptConfigFile.IsPresent)
+            $allScrReqModules =  @(if($UseScriptConfigFile.IsPresent) { $ScriptObj.ScriptConfig.RequiredModules } else { $ScriptObj.ScriptInfo.RequiredModules })
+            
+            foreach($reqModule in $allScrReqModules)
             {
-                $ScriptRequiredModules_All = $AllScriptValidation[$scriptFilePath].ScriptConfig.RequiredModules
-                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptFilePath].ScriptConfig.RequiredModules | Where-Object { $AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
-            }
-            else
-            {
-                $ScriptRequiredModules_All = $AllScriptValidation[$scriptFilePath].ScriptInfo.RequiredModules
-                $ScriptRequiredModules_NotExternal = $AllScriptValidation[$scriptFilePath].ScriptInfo.RequiredModules | Where-Object { $AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -notcontains $_.Name }
-            }
+                # At this point the required module object is the correct type but it hasn't been populated with the correct target directory yet
+                $reqModule.TargetDirectory = $ScriptObj.RequiredModulesTargetDirectory
 
-            if ($AllScriptValidation[$scriptFilePath].ScriptInfo)
-            {
-                $scriptVersion = $AllScriptValidation[$scriptFilePath].ScriptInfo.Version
-
-                Write-Verbose "Build Script: $scriptName/$scriptVersion started"
-
-                #Check if Script is already built
-                try
+                if([PSBuild.Context]::Current.SolutionModulesCache.Contains($reqModule.Name))
                 {
-                    $ScriptAlreadyBuild = $false
-                    $ScriptDependanciesValid = $true
-                    $ScriptVersionBuilded = $false
-                    if ($PSBoundParameters.ContainsKey('DestinationPath'))
+                    if([PSBuild.Context]::Current.BuiltModulesCache.Contains($reqModule.Name))
                     {
-                        $ScriptBuildDestinationPath = Join-Path -Path $DestinationPath -ChildPath $Script.Name -ErrorAction Stop
-                        if (Test-Path -Path $ScriptBuildDestinationPath)
+                        # If object is in the Built Modules Cache, it has been built in the previous step, so just skip it to save time
+                        # Note: here we demand that it is built in the CORRECT directory
+                        if([PSBuild.Context]::Current.BuiltModulesCache.Contains(@{ Name=$reqModule.Name; DestinationPath=$reqModule.TargetDirectory }))
                         {
-                            $ScriptAlreadyBuildTest = Test-PSScript -ScriptPath $ScriptBuildDestinationPath -ErrorAction Stop
-                        }
-                    }
-                
-                    #Check if Script with the same version is already builded
-                    if ($AllScriptValidation[$scriptFilePath].IsValid -and $ScriptAlreadyBuildTest.IsValid -and ($AllScriptValidation[$scriptFilePath].ScriptInfo.Version -eq $ScriptAlreadyBuildTest.ScriptInfo.Version))
-                    {
-                        $ScriptVersionBuilded = $true
-                    }
-
-                    #Check if Module Dependancies are valid versions
-                    foreach ($DepModule in $ScriptRequiredModules_All)
-                    {
-                        $depModuleName = $DepModule.Name
-                        $depModuleVersion = $DepModule.Version
-                        $depModuleIdentifier = "$($DepModule.Name)/$($DepModule.Version)"
-                        if ($DependencyDestinationPath)
-                        {
-                            $DepModuleDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName -ErrorAction Stop
-                            $DepModuleVersionDestinationPath = Join-Path -Path $DependencyDestinationPath -ChildPath $depModuleName | Join-Path -ChildPath $depModuleVersion -ErrorAction Stop
-                        }
-
-                        #Check if DepModule is marked as ExternalModuleDependency
-                        if ($AllScriptValidation[$scriptFilePath].ScriptInfo.ExternalModuleDependencies -contains $depModuleName)
-                        {
-                            #Skip this DepModule from validation, as it is marked as external
-                        }
-                        #Check if DepModule is in the same Solution
-                        elseif (($ModuleValidationCache.Value).ContainsKey($depModuleName))
-                        {
-                            if ($ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version -gt $depModuleVersion -or (-not $ModuleValidationCache.Value[$depModuleName].IsValid))
-                            {
-                                $ScriptDependanciesValid = $false
-                            }
-                        }
-                        #Check if DepModule is in PSGetRepositories
-                        elseif ($PSBoundParameters.ContainsKey('PSGetRepository'))
-                        {
-                            #Check for Module in all Nuget Repos
-                            Remove-Variable -Name NugetDependencyList -ErrorAction SilentlyContinue
-                            $NugetDependencyList = New-Object -TypeName System.Collections.ArrayList
-                            foreach ($item in $PSGetRepository)
-                            {
-                                #Search for module
-                                if (-not $PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier))
-                                {
-                                    $PSGet_Params = @{
-                                        Name       = $depModuleName
-                                        Repository = $item.Name
-                                    }
-                                    if (-not $UpdateModuleReferences.IsPresent)
-                                    {
-                                        $PSGet_Params.Add('RequiredVersion', $depModuleVersion)
-                                    }
-                                    if ($item.ContainsKey('Credential'))
-                                    {
-                                        $PSGet_Params.Add('Credential', $item.Credential)
-                                    }
-                                    if ($PSBoundParameters.ContainsKey('Proxy'))
-                                    {
-                                        $PSGet_Params.Add('Proxy', $Proxy)
-                                    }	
-                                    try
-                                    {
-                                        Remove-Variable -Name NugetDependency -ErrorAction SilentlyContinue
-                                        $private:NugetDependency = Find-Module @PSGet_Params -ErrorAction Stop
-                                    }
-                                    catch
-                                    {
-
-                                    }
-                                    #Add module to PsGetModuleValidationCache
-                                    if ($private:NugetDependency)
-                                    {
-                                        $AddMember_Params = @{
-                                            InputObject = $private:NugetDependency
-                                            MemberType  = 'NoteProperty'
-                                            Name        = 'PSGetRepoPriority'
-                                        }
-                                        if ($item.Priority)
-                                        {
-                                            $AddMember_Params.Add('Value', $item.Priority)
-                                        }
-                                        else
-                                        {
-                                            $AddMember_Params.Add('Value', 0)
-                                        }
-                                        $null = Add-Member @AddMember_Params -ErrorAction Stop
-                                        $null = $NugetDependencyList.Add($private:NugetDependency)
-                                    }
-                                }
-                            }
-                            #Get Latest Version if multiple are present
-                            if ($NugetDependencyList.Count -gt 0)
-                            {
-                                Remove-Variable -Name NugetDepToADD -ErrorAction SilentlyContinue
-                                $NugetDepToADD = $NugetDependencyList | Sort-Object -Property Version -Descending | Sort-Object -Property PSGetRepoPriority | select -First 1
-                                $null = $PsGetModuleValidationCache.Value.Add($depModuleIdentifier, $NugetDepToADD)
-                            }
-                                
-                            #Check if DepModule version is downloaded
-                            if (-not (test-path -Path $DepModuleVersionDestinationPath))
-                            {
-                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleIdentifier is not resolved"
-                                $ScriptDependanciesValid = $false
-                            }
-
-                            #Check if DepModule ref version is the latest
-                            if ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier) -and ($PsGetModuleValidationCache.Value[$depModuleIdentifier].Version -gt $depModuleVersion))
-                            {
-                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. PsGet Dependancy: $depModuleIdentifier is not the latest version"
-                                if ($UpdateModuleReferences.IsPresent)
-                                {
-                                    $ScriptDependanciesValid = $false
-                                }
-                            }
-                        }
-                        #Check If Module Dependency is already builded
-                        elseif ($DependencyDestinationPath -and (Test-Path -Path $DepModuleDestinationPath))
-                        {
-                            try
-                            {
-                                $Mod = Test-PSModule -ModulePath $DepModuleDestinationPath -ErrorAction Stop
-                                if ($Mod.ModuleInfo.Version -lt $depModuleVersion)
-                                {
-                                    $ScriptDependanciesValid = $false
-                                }
-                            }
-                            catch
-                            {
-
-                            }
+                            Write-Verbose -Message "[Build PSScript] Analyzing '$($ScriptObj.Name)' -> Skipping required module '$reqModule' because it has already been built."
                         }
                         else
                         {
-                            $ScriptDependanciesValid = $false
+                            # This module has definitely been built previously because it is in the Solution Modules Cache
+                            # The module, however, is not at the required Target Directory which is a problem with the Solution Configuration and not the build process
+                            # Throw error here and demand that Build-PSModule uses the same target dir as required for the scripts
+                            throw "Build PSScript Failed. The script '$ScriptObj' requires module '$($reqModule.Name)' which appears to be built in an incorrect location. Make sure to build solution modules in the correct destination directory. The Script Dependencies folder is '$($reqModule.TargetDirectory)'."
                         }
                     }
-
-                    #Determine if script should be built
-                    if ($ScriptVersionBuilded -and $ScriptDependanciesValid)
+                    else
                     {
-                        $ScriptAlreadyBuild = $true
+                        throw "Build PSScript Failed. The script '$ScriptObj' requires module '$($reqModule.Name)' which appears to be part of the solution but for some reason it is not built yet. This is an unsupported scenario. All required modules should be built in advance using the Build-PSModule command."
                     }
                 }
-                catch
+                elseif($ScriptObj.ScriptInfo.ExternalModuleDependencies -contains $reqModule.Name)
                 {
-
-                }
-
-                #Build Script if not already built
-                if ($ScriptAlreadyBuild)
-                {
-                    Write-Verbose "Build Script: $scriptName/$scriptVersion skipped, already built"
+                    $ExternalModuleDependencies.Add($reqModule)
                 }
                 else
                 {
-                    #Build Script Dependancies
-                    try
+                    $SolutionPSGetDependencies.Add($reqModule)
+                }
+            }
+        }
+
+        $ExternalModuleDependencies = $ExternalModuleDependencies.GetLatestModuleVersions() # Always use latest external modules
+        $SolutionPSGetDependencies = if([PSBuild.Context]::Current.UpdateModuleReferences) { $SolutionPSGetDependencies.GetLatestModuleVersions() } else { $SolutionPSGetDependencies.GetUniqueModuleVersions() }
+
+        # Download Nuget Modules
+        if($SolutionPSGetDependencies.Count -gt 0)
+        {
+            Write-Verbose -Message "[Build PSScript] Detected $($SolutionPSGetDependencies.Count) required modules outside solution. Searching Repositories..."
+
+            if (!$PSBoundParameters.ContainsKey('PSGetRepository'))
+            {
+                throw "Cannot resolve dependencies. It appears that some modules are not part of the solution but there were no specified search repositories from which to download them."
+            }
+
+            $SaveRequiredModules_Params = @{
+                RequiredModules = $SolutionPSGetDependencies
+                PSGetRepository = $PSGetRepository
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy')) { $SaveRequiredModules_Params.Add('Proxy', $Proxy) }
+            priv_Save-RequiredNugetModules @SaveRequiredModules_Params
+        }
+
+        # Check External Dependencies
+        # Here we are only listing the exported commands, which will be used during the Command Analysis phase later. Nothing to build.
+        if($ExternalModuleDependencies.Count -gt 0)
+        {
+            foreach($RequiredModuleExt in $ExternalModuleDependencies)
+            {
+                if(-not [PSBuild.Context]::Current.ExternalModulesCache.Contains($RequiredModuleExt.Name))
+                {
+                    # Search default PS locations
+                    $ResolvedExtModuleObj = $null
+                    $ResolvedExtModuleObj = Get-Module -Name ($RequiredModuleExt.Name) -ListAvailable -Refresh -ErrorAction SilentlyContinue -Verbose:$false | Sort-Object -Property Version | Select-Object -Last 1
+
+                    if($ResolvedExtModuleObj)
                     {
-                        #Resolve Dependancies
-                        if ($ResolveDependancies.IsPresent)
+                        priv_Update-CommandsToModuleMapping -ModuleInfo $ResolvedExtModuleObj -CommandSourceLocation Unknown
+                        [PSBuild.Context]::Current.ExternalModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ResolvedExtModuleObj.Name, $ResolvedExtModuleObj.Version, $null, $ResolvedExtModuleObj.Path))
+                    }
+                    else
+                    {
+                        # Try resolve module by path
+                        if(Test-Path -Path ($RequiredModuleExt.Path))
                         {
-                            foreach ($ModDependency in $ScriptRequiredModules_NotExternal)
+                            $ResolvedExtModuleObj = Get-Module -Name ($RequiredModuleExt.Path) -ListAvailable -Refresh -ErrorAction SilentlyContinue -Verbose:$false | Sort-Object -Property Version | Select-Object -Last 1
+                        }
+
+                        if($ResolvedExtModuleObj)
+                        {
+                            priv_Update-CommandsToModuleMapping -ModuleInfo $ResolvedExtModuleObj -CommandSourceLocation Unknown
+                            [PSBuild.Context]::Current.ExternalModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ResolvedExtModuleObj.Name, $ResolvedExtModuleObj.Version, $null, $ResolvedExtModuleObj.Path))
+                        }
+                        else
+                        {
+                            throw "Failed to resolve External Script Dependencies. Required module '$RequiredModuleExt' was not found."
+                        }
+                    }
+                }
+            }
+        }
+
+
+        ### PART 4: BUILD SCRIPT
+        Write-Verbose -Message "[Build PSScript] Building Scripts..."
+        foreach($ScriptObj in [PSBuild.Context]::Current.SolutionScriptsCache)
+        {
+            # PART 4-a: Update Required Module versions in the Script Manifest
+            Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Validating Required Module Versions"
+            $ModuleDependanciesDefinition = New-Object -TypeName System.Collections.ArrayList
+            $UpdateScriptInfoRequired = $false
+            foreach($requiredModule in $ScriptObj.ScriptInfo.RequiredModules)
+            {
+                $shouldUpdateVersion = $false
+                $latestVersion = $null
+                $reqModuleName = $requiredModule.Name
+
+                if([PSBuild.Context]::Current.BuiltModulesCache.Contains($requiredModule.Name))
+                {
+                    $latestVersion = [PSBuild.Context]::Current.BuiltModulesCache.GetLatestVersion($requiredModule.Name)
+
+                    if(($requiredModule.Version -lt $latestVersion.Version) -and ([PSBuild.Context]::Current.UpdateModuleReferences -or [PSBuild.Context]::Current.SolutionModulesCache.Contains($requiredModule.Name)))
+                    {
+                        $shouldUpdateVersion = $true
+                    }
+                }
+                elseif([PSBuild.Context]::Current.ExternalModulesCache.Contains($requiredModule.Name))
+                {
+                    $latestVersion = [PSBuild.Context]::Current.ExternalModulesCache.GetLatestVersion($requiredModule.Name)
+
+                    if(-not ($latestVersion.IsPortableModule))
+                    {
+                        $reqModuleName = $latestVersion.DestinationPath
+                    }
+
+                    if($requiredModule.Version -lt $latestVersion.Version)
+                    {
+                        Write-Warning -Message "Script $ScriptObj depends on $requiredModule which is not part of this solution. $($requiredModule.Name) has a newer version ($($latestVersion.Version)) and the required modules reference will be updated."
+                        $shouldUpdateVersion = $true
+                    }
+                }
+                else
+                {
+                    throw "Required module $($requiredModule.Name) was not found in either the Built Modules Cache or the External Modules Cache. This should not be possible but you still did it! Congrats!"
+                }
+                
+                if($shouldUpdateVersion)
+                {
+                    $null = $ModuleDependanciesDefinition.Add([Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
+                        ModuleName    = $reqModuleName
+                        ModuleVersion = $latestVersion.Version
+                    }))
+                    Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Required Module '$($requiredModule.Name)/$($requiredModule.Version)' has a newer version ($($latestVersion.Version))"
+                    $UpdateScriptInfoRequired = $true
+                }
+                else
+                {
+                    $null = $ModuleDependanciesDefinition.Add([Microsoft.PowerShell.Commands.ModuleSpecification]::new(@{
+                        ModuleName    = $reqModuleName
+                        ModuleVersion = $requiredModule.Version
+                    }))
+                }
+            }
+
+            if ($UpdateScriptInfoRequired)
+            {
+                if ($UseScriptConfigFile.IsPresent)
+                {
+                    Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Updating Script Configuration"
+    
+                    # Config File Format
+                    $cfg = [PSCustomObject]@{
+                        RequiredModules = @($ModuleDependanciesDefinition.ForEach{ [PSCustomObject]@{ Name = $_.Name; Version = $_.Version } })
+                    }
+
+                    # Save File
+                    $cfg | ConvertTo-Json | Out-File -FilePath ([IO.Path]::Combine($ScriptObj.SourceDirectory, "$($ScriptObj.Name).config.json"))
+
+                    # Update Object in Memory
+                    $ScriptObj.Update($(priv_Test-Script -ScriptPath $ScriptObj.ScriptPath -UseScriptConfigFile))
+                }
+                else
+                {
+                    Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Updating Script File Info"
+
+                    $currentVerbosePreference = $VerbosePreference
+                    $VerbosePreference = 'SilentlyContinue'
+
+                    Update-ScriptFileInfo -Path ($ScriptObj.ScriptPath) -RequiredModules $ModuleDependanciesDefinition -ErrorAction Stop
+                    
+                    # Update Object in Memory
+                    $ScriptObj.Update($(priv_Test-Script -ScriptPath $ScriptObj.ScriptPath))
+
+                    $VerbosePreference = $currentVerbosePreference
+                }
+            }
+
+
+            ### PART 4-b: Check if all commands are referenced
+            if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.Enabled)
+            {
+                if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.ExcludedSources -notcontains ($ScriptObj.Name))
+                {
+                    # Update Script Definition. This is required in order to extract all commands used inside the script
+                    Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Reading Script AST"
+                    $scrDefiniton = priv_Get-ScriptDefinition -ScriptPath ($ScriptObj.ScriptPath)
+                    $ScriptObj.UpdateScriptDefinitionAst($scrDefiniton)
+
+
+                    Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Checking if all commands are referenced"
+                    foreach($NonLocalCommand in $ScriptObj.GetNonLocalCommands())
+                    {
+                        if([PSBuild.Context]::Current.CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $NonLocalCommand)
+                        {
+                            if([PSBuild.Context]::Current.CommandsToModuleMapping.ContainsCommand($NonLocalCommand))  
                             {
-                                $dependantModuleName = $ModDependency.Name
-                                $dependantModuleVersion = $ModDependency.Version
-                                $depModuleIdentifier = "$($ModDependency.Name)/$($ModDependency.Version)"
-                                Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion started"
-                                $ModDependencyFound = $false
-                                #Search for module in the Solution
-                                if ((-not $ModDependencyFound) -and ($ModuleValidationCache.Value).ContainsKey($dependantModuleName))
+                                $cmdIsReferenced = $false
+                                foreach($cmdSrc in ([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand)))
                                 {
-                                    $BuildPSModule_Params = @{
-                                        SourcePath            = $ModuleValidationCache.Value[$dependantModuleName].ModuleInfo.ModuleBase
-                                        DestinationPath       = $DependencyDestinationPath
-                                        ResolveDependancies   = $ResolveDependancies.IsPresent
-                                        ModuleValidationCache = $ModuleValidationCache
-                                    }
-                                    if ($PSBoundParameters.ContainsKey('Proxy'))
+                                    if(($cmdSrc.SourceLocation -eq [PSBuild.CommandSourceLocation]::BuiltIn) -or 
+                                       ($ScriptObj.ScriptInfo.RequiredModules.Name -contains $cmdSrc.Source))
                                     {
-                                        $BuildPSModule_Params.Add('Proxy', $Proxy)
+                                        # Module is either BuiltIn or explicitly referenced
+                                        $cmdIsReferenced = $true
+                                        break
                                     }
-                                    Build-PSModule @BuildPSModule_Params -ErrorAction Stop
-                                    $ModDependencyFound = $true
                                 }
 
-                                #Search for module in Solution PSGetRepositories
-                                if ((-not $ModDependencyFound) -and ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier)) -and ($PSBoundParameters.ContainsKey('PSGetRepository')))
+                                if(-not $cmdIsReferenced)
                                 {
-                                    $NuGetDependancyHandle = $PsGetModuleValidationCache.Value[$depModuleIdentifier]
-                                    #Check if NugetPackage is already downloaded
-                                    try
+                                    if([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand).Count -gt 1)
                                     {
-                                        $ModDependencyExcepctedPath = Join-Path -Path $DependencyDestinationPath -ChildPath $dependantModuleName -ErrorAction Stop
-                                        Remove-Variable -Name ModDependencyExist -ErrorAction SilentlyContinue
-                                        $ModDependencyExist = Get-Module -ListAvailable -FullyQualifiedName $ModDependencyExcepctedPath -Refresh -ErrorAction Stop -Verbose:$false
-                                    }
-                                    catch
-                                    {
-
-                                    }
-                                    if (($ModDependencyExist) -and ($ModDependencyExist.Version -eq $NuGetDependancyHandle.Version))
-                                    {
-                                        #NugetPackage already downloaded
+                                        throw "Build Script '$ScriptObj' failed. The command '$NonLocalCommand' was found in modules $(@([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand).ForEach{ "'$($_.Source)'" }) -join ', ') but neither is referenced in the script metadata."
                                     }
                                     else
                                     {
-                                        #Determine from which repo to download the module
-                                        Remove-Variable -Name ModuleRepo -ErrorAction SilentlyContinue
-                                        $ModuleRepo = $PSGetRepository | Where-Object { $_.Name -eq ($NuGetDependancyHandle.Repository) }
-
-                                        #Downloading NugetPackage
-                                        Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion in progress. Downloading PSGetPackage: $($NuGetDependancyHandle.Name)/$($NuGetDependancyHandle.Version)"
-                                        if (-not (Test-Path $DependencyDestinationPath))
-                                        {
-                                            $null = New-Item -Path $DependencyDestinationPath -ItemType Directory -ErrorAction Stop
-                                        }
-                                        $PSGet_Params = @{
-                                            Name            = $dependantModuleName
-                                            Repository      = $ModuleRepo.Name
-                                            RequiredVersion = $NuGetDependancyHandle.Version
-                                            Path            = $DependencyDestinationPath
-                                        }
-                                        if ($ModuleRepo.ContainsKey('Credential'))
-                                        {
-                                            $PSGet_Params.Add('Credential', $ModuleRepo.Credential)
-                                        }
-                                        if ($PSBoundParameters.ContainsKey('Proxy'))
-                                        {
-                                            $PSGet_Params.Add('Proxy', $Proxy)
-                                        }
-                                        Save-Module @PSGet_Params -ErrorAction Stop -Verbose:$false
+                                        throw "Build Script '$ScriptObj' failed. The command '$NonLocalCommand' was found in module '$([PSBuild.Context]::Current.CommandsToModuleMapping.GetCommandSources($NonLocalCommand)[0].Source)' but it is not referenced in the script metadata."
                                     }
-                                    $ModDependencyFound = $true
-                                }
-
-                                #Throw Not Found
-                                if ($ModDependencyFound)
-                                {
-                                    Write-Verbose "Build Script: $scriptName/$scriptVersion in progress. Build dependant module:$dependantModuleName/$dependantModuleVersion completed"
-                                }
-                                else 
-                                {
-                                    throw "Dependand module: $dependantModuleName/$dependantModuleVersion not found"
                                 }
                             }
-                        }
-                    }
-                    catch
-                    {
-                        Write-Error "Build Script: $scriptName/$scriptVersion failed. Details: $_"
-                    }
-
-                    #Build Script
-                    try
-                    {
-                        #Update Script Dependancies definition
-                        if ((-not $ScriptDependanciesValid) -and ($UpdateModuleReferences.IsPresent))
-                        {
-                            Write-Warning "Build Script: $scriptName/$scriptVersion in progress. RequiredModules specification not valid, updating it..."
-
-                            foreach ($DepModule in $ScriptRequiredModules_All)
-                            {
-                                $depModuleName = $DepModule.Name
-
-                                if (($ModuleValidationCache.Value).ContainsKey($depModuleName))
-                                {
-                                    $DepModule.Version = $ModuleValidationCache.Value[$depModuleName].ModuleInfo.Version
-                                }
-                                elseif ($PsGetModuleValidationCache.Value.ContainsKey($depModuleIdentifier))
-                                {
-                                    $DepModule.Version = $PsGetModuleValidationCache.Value[$depModuleIdentifier].Version
-                                }
-                            }
-                            if (($ScriptRequiredModules_All | measure-object).Count -gt 0)
-                            {
-                                if ($UseScriptConfigFile.IsPresent)
-                                {
-                                    Update-PSScriptConfig -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ScriptConfig $AllScriptValidation[$scriptFilePath].ScriptConfig
-                                }
-                                else
-                                {
-                                    Update-ScriptFileInfo -Path $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -RequiredModules $ScriptRequiredModules -ErrorAction Stop
-                                }
-                            }
-                        }
-
-                        #Check Script Dependancies
-                        if ($CheckCommandReferencesConfiguration.Enabled -and (-not $AllScriptValidation[$scriptFilePath].IsVersionValid))
-                        {
-                            #if Script is Excluded in CheckCommandReferencesConfiguration
-                            if ($CheckCommandReferencesConfiguration.ExcludedSources -contains $scriptName)
-                            {
-                                Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Skipping CommandReference validation"
-                            }
-                            #if Script is not Excluded in CheckCommandReferencesConfiguration
                             else
                             {
-                                #Analyze Command references
-
-                                $CurrentRequiredModules = $PSNativeModules + $ScriptRequiredModules_All.Name
-                                
-                                $priv_AnalyseItemDependancies_Params = @{
-                                    ScriptPath            = $AllScriptValidation[$scriptFilePath].ScriptInfo.Path
-                                    GlobalCommandAnalysis = $CommandsToModuleMapping
-                                    CurrentDependancies   = $CurrentRequiredModules
-                                }
-                                if ($PSBoundParameters.ContainsKey('PSGetRepository'))
-                                {
-                                    $priv_AnalyseItemDependancies_Params.Add('PSGetRepository', $PSGetRepository)
-                                }
-                                if ($PSBoundParameters.ContainsKey('Proxy'))
-                                {
-                                    $priv_AnalyseItemDependancies_Params.Add('Proxy', $Proxy)
-                                }
-                                $LocalCommandAnalysis = priv_Analyse-ItemDependancies @priv_AnalyseItemDependancies_Params -ErrorAction Stop
-                                $CommandNotReferenced = $LocalCommandAnalysis | Where-Object { ($_.IsReferenced -eq $false) -and ($_.CommandType -ne 'Application') }
-
-                                #Check if command is in CheckCommandReferencesConfiguration.ExcludedCommands list
-                                if ($CheckCommandReferencesConfiguration.ExcludedCommands.Count -gt 0)
-                                {
-                                    $CommandNotReferenced = $CommandNotReferenced | Where-Object { $CheckCommandReferencesConfiguration.ExcludedCommands -notcontains $_.CommandName }
-                                }
-
-                                if ($CommandNotReferenced)
-                                {
-                                    throw "Missing RequiredModule reference for [Module\Command]: $($CommandNotReferenced.GetCommandFQDN() -join ', ')"
-                                }
+                                throw "Build Script '$ScriptObj' failed. The command '$NonLocalCommand' was not found in any of the required modules referenced in the script metadata."
                             }
                         }
+                    }
+                }
+            }
 
-                        #Check Script Integrity
-                        if (-not $AllScriptValidation[$scriptFilePath].IsValid)
-                        {
-                            Write-Warning "Build Script: $scriptName/$scriptVersion in progress. Not valid, updating version..."
-                            Update-PSScriptVersion -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ErrorAction Stop
+
+            ### PART 4-c: Check Module Integrity
+            if (-not $ScriptObj.IsReadyForPackaging)
+            {
+                throw "Build Script '$ScriptObj' failed. The script is not ready for packaging. Missing either Author or Description."
+            }
+
+            if (-not $ScriptObj.IsValid)
+            {
+                ## NOTE: This also updates the file hash
+                Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Updating Script Version"
+
+                $currentVerbosePreference = $VerbosePreference
+                $VerbosePreference = 'SilentlyContinue'
+
+                $oldScriptVer = $ScriptObj.ScriptInfo.Version
+                Update-PSScriptVersion -ScriptPath ($ScriptObj.ScriptPath) -ErrorAction Stop -Verbose:$false
 						
-                            #Refresh ScriptValidation
-                            $AllScriptValidation[$scriptFilePath] = Test-PSScript -ScriptPath $AllScriptValidation[$scriptFilePath].ScriptInfo.Path -ErrorAction Stop
-                        }
-                        elseif (-not $AllScriptValidation[$scriptFilePath].IsReadyForPackaging)
-                        {
-                            throw "Not ready for packaging. Missing either Author or Description."
-                        }
+                # Update Object in Memory
+                $ScriptObj.Update($(priv_Test-Script -ScriptPath $ScriptObj.ScriptPath -UseScriptConfigFile:($UseScriptConfigFile.IsPresent)))
 
-                        #Export Script to DestinationPath
-                        if ($PSBoundParameters.ContainsKey('DestinationPath'))
-                        {
-                            try
-                            {
-                                $privExportArtifact_Params = @{
-                                    SourcePath      = $AllScriptValidation[$scriptFilePath].ScriptInfo.Path
-                                    DestinationPath = $DestinationPath
-                                }
-                                if ($UseScriptConfigFile.IsPresent)
-                                {
-                                    $privExportArtifact_Params.Add('Type', 'ScriptWithConfig')
-                                }
-                                else
-                                {
-                                    $privExportArtifact_Params.Add('Type', 'Script')
-                                }
-                                priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
-                            }
-                            catch
-                            {
-                                throw "Unable to copy script to $DestinationPath. Details: $_"
-                            }
-                        }
+                Write-Warning -Message "[Build PSScript] Processing $ScriptObj -> Updated script from version $($oldScriptVer) to version $($ScriptObj.ScriptInfo.Version)"
+
+                $VerbosePreference = $currentVerbosePreference
+            }
+
+
+            ### PART 4-d: Export Script to TargetDirectory
+            if($ScriptObj.TargetDirectory)
+            {
+                Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> Exporting Script"
+
+                try
+                {
+                    if( -not [IO.Directory]::Exists($ScriptObj.TargetDirectory)) { $null = [IO.Directory]::CreateDirectory($ScriptObj.TargetDirectory) }
+                    
+                    $privExportArtifact_Params = @{
+                        SourcePath      = $ScriptObj.ScriptPath
+                        DestinationPath = $ScriptObj.TargetDirectory
                     }
-                    catch
+                    if ($UseScriptConfigFile.IsPresent)
                     {
-                        Write-Error "Build Script: $scriptName/$scriptVersion failed. Details: $_" -ErrorAction 'Stop'
+                        $privExportArtifact_Params.Add('Type', 'ScriptWithConfig')
                     }
-                }
+                    else
+                    {
+                        $privExportArtifact_Params.Add('Type', 'Script')
+                    }
 
-                Write-Verbose "Build Script: $scriptName/$scriptVersion completed"
-            }
-            else
-            {
-                $ErrorMsg = "Build Script: $scriptName failed."
-                if ($AllScriptValidation[$scriptFilePath].ValidationErrors)
+                    priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
+                                        
+                    [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ScriptObj.Name, $ScriptObj.ScriptInfo.Version, $ScriptObj.ScriptPath, $ScriptObj.TargetDirectory))
+                }
+                catch
                 {
-                    $ErrorDetails = $AllScriptValidation[$scriptFilePath].ValidationErrors -join "$([System.Environment]::NewLine) $([System.Environment]::NewLine)"
-                    $ErrorMsg += @"
- Script Parse Errors:
-$ErrorDetails
-"@
+                    throw "Build Script '$ScriptObj' failed. Cannot copy script to '$DestinationPath'. Details: $_"
                 }
-                else
-                {
-                    $ErrorMsg += 'Missing ScriptInfo.'
-                }
-                Write-Error $ErrorMsg -ErrorAction Stop	
             }
-        }
-    }
-}
 
-function Publish-PSModule
-{
-    [CmdletBinding()]
-    param
-    (
-        #ModulesFolder
-        [Parameter(Mandatory = $true)]
-        [System.IO.DirectoryInfo[]]$ModulePath,
 
-        #PSGetRepository
-        [Parameter(Mandatory = $false)]
-        [hashtable]$PSGetRepository,
-
-        #SkipVersionValidation
-        [Parameter(Mandatory = $false)]
-        [switch]$SkipVersionValidation,
-		
-        #Proxy
-        [Parameter(Mandatory = $false)]
-        [uri]$Proxy
-    )
-
-    Process
-    {
-        #Check if Repository is already registered
-        try
-        {
-            Write-Verbose "Check if Repository is already registered started"
-			
-            $AssertPSRepository_Params = @{
-                PSGetRepository = $PSGetRepository
-            }
-            if ($PSBoundParameters.ContainsKey('Proxy'))
-            {
-                $AssertPSRepository_Params.Add('Proxy', $Proxy)
-            }
-            Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
-			
-            Write-Verbose "Check if Repository is already registered completed"
-        }
-        catch
-        {
-            Write-Error "Check if Repository is already registered failed. Details: $_" -ErrorAction 'Stop'
-        }
-
-        #Publish Module
-        foreach ($Module in $ModulePath)
-        {
-            try
-            {
-                $moduleName = $Module.Name
-                Write-Verbose "Publish Module:$moduleName started"
-
-                #Check if Module is already built
-                $ModInfo = Test-PSModule -ModulePath $Module -ErrorAction Stop
-                if (-not $ModInfo.IsVersionValid -and (-not $SkipVersionValidation.IsPresent))
-                {
-                    throw 'not builded'
-                }
-
-                #Publish Module
-                $PublishModuleAndDependacies_Params = @{
-                    ModuleInfo              = $ModInfo.ModuleInfo
-                    Repository              = $PSGetRepository.Name
-                    PublishDependantModules = $true
-                    Force                   = $true
-                }
-                if ($PSGetRepository.ContainsKey('Credential'))
-                {
-                    $PublishModuleAndDependacies_Params.Add('Credential', $PSGetRepository.Credential)
-                }
-                if ($PSGetRepository.ContainsKey('NuGetApiKey'))
-                {
-                    $PublishModuleAndDependacies_Params.Add('NuGetApiKey', $PSGetRepository.NuGetApiKey)
-                }
-                if ($PSBoundParameters.ContainsKey('Proxy'))
-                {
-                    $PublishModuleAndDependacies_Params.Add('Proxy', $Proxy)
-                }
-                priv_Publish-PSModule @PublishModuleAndDependacies_Params -ErrorAction Stop -Verbose -VerbosePrefix "Publish Module:$moduleName in progress. "
-
-                Write-Verbose "Publish Module:$moduleName completed"
-            }
-            catch
-            {
-                Write-Error "Publish Module:$moduleName failed. Details: $_" -ErrorAction Stop
-            }
+            Write-Verbose -Message "[Build PSScript] Processing $ScriptObj -> DONE"
         }
     }
 }
@@ -2015,13 +2186,30 @@ function Build-PSSolution
     param
     (
         #SolutionConfigPath
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_SolutionByPath')]
+        [Parameter(Mandatory = $true)]
         [System.IO.DirectoryInfo]$SolutionConfigPath,
 
         #SolutionConfig
-        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_SolutionByObject')]
-        [psobject]$SolutionConfigObject
+        [Parameter(Mandatory = $true)]
+        [psobject]$SolutionConfigObject,
+
+        #Clear
+        [Parameter(Mandatory = $false)]
+        [switch]$Clear
     )
+
+    Begin
+    {
+        if($Clear.IsPresent)
+        {
+            [PSBuild.Context]::Current.SolutionModulesCache.Clear()
+            [PSBuild.Context]::Current.SolutionScriptsCache.Clear()
+            [PSBuild.Context]::Current.PsGetModuleValidationCache.Clear()
+            [PSBuild.Context]::Current.BuiltModulesCache.Clear()
+            [PSBuild.Context]::Current.ExternalModulesCache.Clear()
+            [PSBuild.Context]::Current.CommandsToModuleMapping.Clear()
+        }
+    }
 
     Process
     {
@@ -2047,6 +2235,14 @@ function Build-PSSolution
                     throw "Unknown ParameterSetName: $($PSCmdlet.ParameterSetName)"
                 }
             }
+
+
+            [PSBuild.Context]::Current.CheckCommandReferencesConfiguration = [PSBuild.CheckCommandReferencesConfiguration]::new($SolutionConfig.Build.CheckCommandReferences)
+
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = $SolutionConfig.Build.CheckDuplicateCommandNames
+
+            [PSBuild.Context]::Current.UpdateModuleReferences = $SolutionConfig.Build.UpdateModuleReferences
+
 
             Write-Verbose "Initialize SolutionConfiguration completed"
         }
@@ -2093,25 +2289,10 @@ function Build-PSSolution
                     $AddRemove_PSModulePathEntry_CommonParams['Scope'] = $SolutionConfig.Build.AutoloadDependanciesScope
                 }
 
-                #Calculate ProfilesNotInScope
-                #$ProfilesNotInScope = [System.Collections.Generic.List[string]]::new()
-                #foreach ($scp in @('User','Process','Machine'))
-                #{
-                #    if ($AddRemove_PSModulePathEntry_CommonParams['Scope'] -notcontains $scp)
-                #    {
-                #        $ProfilesNotInScope.add($scp)
-                #    }
-                #}
-
                 if ($SolutionConfig.Build.AutoloadDependancies)
                 {
                     Write-Verbose "Configure PS Environment in progress. Enable Module autoloading for: $($DependancyFolders -join ',')"
                     Add-PSModulePathEntry @AddRemove_PSModulePathEntry_CommonParams -Force -ErrorAction Stop
-
-                    #if ($ProfilesNotInScope.Count -gt 0)
-                    #{
-                    #    Remove-PSModulePathEntry -Path $DependancyFolders -Scope $ProfilesNotInScope -ErrorAction Stop -WarningAction SilentlyContinue
-                    #}
                 }
                 else
                 {
@@ -2157,40 +2338,34 @@ function Build-PSSolution
         #Build Solution Modules
         try
         {
-            [ref]$ModuleValidationCache = @{ }
-            [ref]$PsGetModuleValidationCache = @{ }
-
             if ($SolutionConfig.SolutionStructure.ModulesPath)
             {
                 Write-Verbose "Build PSModules started"
 
-                #Validate All Modules
-                $AllModulesPath = New-Object System.Collections.ArrayList -ErrorAction Stop
+                #Enumerate All Modules
+                $ModulePathConfiguration = [PSBuild.PSModuleBuildInfoCollection]::new()
                 foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
                 {
-                    $null = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop | foreach { $AllModulesPath.Add($_) }
-                }
-                priv_Validate-Module -SourcePath $AllModulesPath -ModuleValidationCache $ModuleValidationCache
-
-                foreach ($ModulePath in $SolutionConfig.SolutionStructure.ModulesPath)
-                {
-                    $Modules = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop
-                    $BuildPSModule_Params = @{
-                        SourcePath                          = $Modules
-                        DestinationPath                     = $ModulePath.BuildPath
-                        ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
-                        PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
-                        CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
-                        ModuleValidationCache               = $ModuleValidationCache
-                        UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
-                        PsGetModuleValidationCache          = $PsGetModuleValidationCache
-                    }
-                    if ($SolutionConfig.GlobalSettings.Proxy.Uri)
+                    $modulesFound = Get-ChildItem -Path $ModulePath.SourcePath -Directory -ErrorAction Stop -Verbose:$false
+                    foreach($moduleFound in $modulesFound)
                     {
-                        $BuildPSModule_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
+                        $ModulePathConfiguration.Add([PSBuild.PSModuleBuildInfo]::new(
+                            $moduleFound.Name,
+                            $null,
+                            $moduleFound.FullName,
+                            $ModulePath.BuildPath
+                        ))
                     }
-                    Build-PSModule @BuildPSModule_Params -ErrorAction Stop
                 }
+
+                $BuildPSModule_Params = @{
+                    ModulePathConfiguration    = $ModulePathConfiguration
+                    ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
+                    PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
+                }
+                if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSModule_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
+
+                Build-PSModule @BuildPSModule_Params -ErrorAction Stop
 		
                 Write-Verbose "Build PSModules completed"
             }
@@ -2209,41 +2384,36 @@ function Build-PSSolution
         {
             Write-Verbose "Build Solution Scripts started"
 
+            #Enumerate All Scripts
+            $ScriptPathConfiguration = [PSBuild.PSScriptBuildInfoCollection]::new()
             foreach ($ScriptPath in $SolutionConfig.SolutionStructure.ScriptPath)
             {
-                Remove-Variable -Name Scripts -ErrorAction SilentlyContinue
-                $Scripts = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1  -ErrorAction Stop
-                if ($ScriptPath.ContainsKey('Exclude'))
+                if(($SolutionConfig.Build.AutoResolveDependantModules) -and [String]::IsNullOrEmpty($ScriptPath.BuildPath) -and [String]::IsNullOrEmpty($ScriptPath.DependencyDestinationPath))
                 {
-                    $Scripts = $Scripts | where-object { $ScriptPath.Exclude -notcontains $_.Name }
+                    throw "Build Solution Scripts failed. The Solution Configuration is invalid. ScriptPath requires you to specify at least one of the following properties: BuildPath, DependencyDestinationPath."
                 }
-                if ($scripts)
+
+                $scriptsFound = Get-ChildItem -Path $ScriptPath.SourcePath -Filter *.ps1  -ErrorAction Stop
+                foreach($scriptFound in $scriptsFound)
                 {
-                    $BuildPSScript_Params = @{
-                        SourcePath                          = $Scripts
-                        ResolveDependancies                 = $SolutionConfig.Build.AutoResolveDependantModules
-                        PSGetRepository                     = $SolutionConfig.Packaging.PSGetSearchRepositories
-                        CheckCommandReferencesConfiguration = $SolutionConfig.Build.CheckCommandReferences
-                        ModuleValidationCache               = $ModuleValidationCache
-                        UpdateModuleReferences              = $SolutionConfig.Build.UpdateModuleReferences
-                        PsGetModuleValidationCache          = $PsGetModuleValidationCache
-                        UseScriptConfigFile                 = $SolutionConfig.Build.UseScriptConfigFile
-                    }
-                    if ($ScriptPath.ContainsKey('BuildPath'))
-                    {
-                        $BuildPSScript_Params.Add('DestinationPath', $ScriptPath.BuildPath)
-                    }
-                    if ($ScriptPath.ContainsKey('DependencyDestinationPath'))
-                    {
-                        $BuildPSScript_Params.Add('DependencyDestinationPath', $ScriptPath.DependencyDestinationPath)
-                    }
-                    if ($SolutionConfig.GlobalSettings.Proxy.Uri -and (-not [string]::IsNullOrEmpty($SolutionConfig.GlobalSettings.Proxy.Uri)))
-                    {
-                        $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri)
-                    }
-                    Build-PSScript @BuildPSScript_Params -ErrorAction Stop
+                    $ScriptPathConfiguration.Add([PSBuild.PSScriptBuildInfo]::new(@{
+                        Name                           = $scriptFound.Name
+                        SourcePath                     = $scriptFound.FullName
+                        DestinationPath                = $ScriptPath.BuildPath
+                        RequiredModulesDestinationPath = $(if($ScriptPath.DependencyDestinationPath) {$ScriptPath.DependencyDestinationPath} else {$ScriptPath.BuildPath})
+                    }))
                 }
             }
+
+            $BuildPSScript_Params = @{
+                ScriptPathConfiguration    = $ScriptPathConfiguration
+                ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
+                UseScriptConfigFile        = $SolutionConfig.Build.UseScriptConfigFile
+                PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
+            }
+            if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
+
+            Build-PSScript @BuildPSScript_Params -ErrorAction Stop
       
             Write-Verbose "Build Solution Scripts completed"
         }
@@ -2401,6 +2571,97 @@ function Publish-PSSolution
         catch
         {
             Write-Error "Publish Solution Modules failed. Details: $_" -ErrorAction 'Stop'
+        }
+    }
+}
+
+function Publish-PSModule
+{
+    [CmdletBinding()]
+    param
+    (
+        #ModulesFolder
+        [Parameter(Mandatory = $true)]
+        [System.IO.DirectoryInfo[]]$ModulePath,
+
+        #PSGetRepository
+        [Parameter(Mandatory = $false)]
+        [hashtable]$PSGetRepository,
+
+        #SkipVersionValidation
+        [Parameter(Mandatory = $false)]
+        [switch]$SkipVersionValidation,
+		
+        #Proxy
+        [Parameter(Mandatory = $false)]
+        [uri]$Proxy
+    )
+
+    Process
+    {
+        #Check if Repository is already registered
+        try
+        {
+            Write-Verbose "Check if Repository is already registered started"
+			
+            $AssertPSRepository_Params = @{
+                PSGetRepository = $PSGetRepository
+            }
+            if ($PSBoundParameters.ContainsKey('Proxy'))
+            {
+                $AssertPSRepository_Params.Add('Proxy', $Proxy)
+            }
+            Assert-PSRepository @AssertPSRepository_Params -ErrorAction Stop
+			
+            Write-Verbose "Check if Repository is already registered completed"
+        }
+        catch
+        {
+            Write-Error "Check if Repository is already registered failed. Details: $_" -ErrorAction 'Stop'
+        }
+
+        #Publish Module
+        foreach ($Module in $ModulePath)
+        {
+            try
+            {
+                $moduleName = $Module.Name
+                Write-Verbose "Publish Module:$moduleName started"
+
+                #Check if Module is already built
+                $ModInfo = Test-PSModule -ModulePath $Module -ErrorAction Stop
+                if (-not $ModInfo.IsVersionValid -and (-not $SkipVersionValidation.IsPresent))
+                {
+                    throw 'not builded'
+                }
+
+                #Publish Module
+                $PublishModuleAndDependacies_Params = @{
+                    ModuleInfo              = $ModInfo.ModuleInfo
+                    Repository              = $PSGetRepository.Name
+                    PublishDependantModules = $true
+                    Force                   = $true
+                }
+                if ($PSGetRepository.ContainsKey('Credential'))
+                {
+                    $PublishModuleAndDependacies_Params.Add('Credential', $PSGetRepository.Credential)
+                }
+                if ($PSGetRepository.ContainsKey('NuGetApiKey'))
+                {
+                    $PublishModuleAndDependacies_Params.Add('NuGetApiKey', $PSGetRepository.NuGetApiKey)
+                }
+                if ($PSBoundParameters.ContainsKey('Proxy'))
+                {
+                    $PublishModuleAndDependacies_Params.Add('Proxy', $Proxy)
+                }
+                priv_Publish-PSModule @PublishModuleAndDependacies_Params -ErrorAction Stop -Verbose -VerbosePrefix "Publish Module:$moduleName in progress. "
+
+                Write-Verbose "Publish Module:$moduleName completed"
+            }
+            catch
+            {
+                Write-Error "Publish Module:$moduleName failed. Details: $_" -ErrorAction Stop
+            }
         }
     }
 }
@@ -2569,54 +2830,60 @@ function Assert-PSRepository
     {
         foreach ($Repo in $PSGetRepository)
         {
-            #Check if Repository is already registered
-            $RepoFound = $false
-            try
+            if([PSBuild.Context]::Current.AssertedPSRepositories -notcontains ($Repo.Name)) # local cache to speed things up with multiple calls
             {
-                $RepoCheck = Get-PSRepository -Name $Repo.Name -ErrorAction Stop
-                if ($RepoCheck)
+                #Check if Repository is already registered
+                $RepoFound = $false
+
+                try
                 {
-                    if ($Repo.ContainsKey('SourceLocation') -and ($RepoCheck.SourceLocation -ne $Repo.SourceLocation))
+                    $VerbosePreference = 'SilentlyContinue'
+                    $RepoCheck = Get-PSRepository -Name $Repo.Name -ErrorAction Stop -Verbose:$false
+                    if ($RepoCheck)
                     {
-                        $SetPSRepository_Params = @{
-                            Name           = $Repo.Name
-                            SourceLocation = $Repo.SourceLocation
-                        }
-                        if ($PSBoundParameters.ContainsKey('Proxy'))
+                        if ($Repo.ContainsKey('SourceLocation') -and ($RepoCheck.SourceLocation -ne $Repo.SourceLocation))
                         {
-                            $SetPSRepository_Params.Add('Proxy', $Proxy)
+                            $SetPSRepository_Params = @{
+                                Name           = $Repo.Name
+                                SourceLocation = $Repo.SourceLocation
+                            }
+                            if ($PSBoundParameters.ContainsKey('Proxy'))
+                            {
+                                $SetPSRepository_Params.Add('Proxy', $Proxy)
+                            }
+                            Set-PSRepository @SetPSRepository_Params -ErrorAction Stop -Verbose:$false
                         }
-                        Set-PSRepository @SetPSRepository_Params -ErrorAction Stop
-                    }
-                    if ($Repo.ContainsKey('PublishLocation') -and ($RepoCheck.PublishLocation -ne $Repo.PublishLocation))
-                    {
-                        $SetPSRepository_Params = @{
-                            Name           = $Repo.Name
-                            SourceLocation = $Repo.PublishLocation
-                        }
-                        if ($PSBoundParameters.ContainsKey('Proxy'))
+                        if ($Repo.ContainsKey('PublishLocation') -and ($RepoCheck.PublishLocation -ne $Repo.PublishLocation))
                         {
-                            $SetPSRepository_Params.Add('Proxy', $Proxy)
+                            $SetPSRepository_Params = @{
+                                Name           = $Repo.Name
+                                SourceLocation = $Repo.PublishLocation
+                            }
+                            if ($PSBoundParameters.ContainsKey('Proxy'))
+                            {
+                                $SetPSRepository_Params.Add('Proxy', $Proxy)
+                            }
+                            Set-PSRepository @SetPSRepository_Params -ErrorAction Stop -Verbose:$false
                         }
-                        Set-PSRepository @SetPSRepository_Params -ErrorAction Stop
-                    }
 
-                    $RepoFound = $true
+                        $RepoFound = $true
+                    }
                 }
-            }
-            catch
-            {
-
-            }
+                catch
+                {
+                }
 			
-            if (-not $RepoFound)
-            {
-                $RegisterPSRepository_Params = @{ } + $Repo
-                if ($PSBoundParameters.ContainsKey('Proxy'))
+                if (-not $RepoFound)
                 {
-                    $RegisterPSRepository_Params.Add('Proxy', $Proxy)
+                    $RegisterPSRepository_Params = @{ } + $Repo
+                    if ($PSBoundParameters.ContainsKey('Proxy'))
+                    {
+                        $RegisterPSRepository_Params.Add('Proxy', $Proxy)
+                    }
+                    $null = Register-PSRepository @RegisterPSRepository_Params -ErrorAction Stop -Verbose:$false
                 }
-                $null = Register-PSRepository @RegisterPSRepository_Params -ErrorAction Stop
+
+                [PSBuild.Context]::Current.AssertedPSRepositories.Add($Repo.Name)
             }
         }
     }
@@ -2636,13 +2903,3 @@ $PSNativeModules = @(
 
 #endregion
 
-#region Configuration Classes
-
-class CheckCommandReferencesConfiguration
-{
-    [bool] $Enabled
-    [System.Collections.Generic.List[string]]$ExcludedSources = ([System.Collections.Generic.List[string]]::new())
-    [System.Collections.Generic.List[string]]$ExcludedCommands = ([System.Collections.Generic.List[string]]::new())
-}
-
-#endregion
