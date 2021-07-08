@@ -343,7 +343,7 @@ function Test-PSModule
 function Test-PSScript
 {
     [CmdletBinding()]
-    [OutputType([PSModuleValidation])]
+    [OutputType([PSScriptValidation])]
     param
     (
         #ScriptPath

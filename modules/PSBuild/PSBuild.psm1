@@ -948,18 +948,15 @@ function priv_Build-SolutionModulesCache
 
         foreach ($ModBuildCfg in $BuildConfiguration)
         {
-            if( -not ([PSBuild.Context]::Current.SolutionModulesCache.Contains($ModBuildCfg.Name)))
+            $testResult = priv_Test-Module -ModulePath ($ModBuildCfg.SourcePath)
+            if($testResult.IsModule)
             {
-                $testResult = priv_Test-Module -ModulePath ($ModBuildCfg.SourcePath)
-                if($testResult.IsModule)
-                {
-                    $testResult.TargetDirectory = $ModBuildCfg.DestinationPath
-                    [PSBuild.Context]::Current.SolutionModulesCache.Add($testResult)
-                }
-                else
-                {
-                    throw "Build Solution Module Cache failed. Unsupported operation: missing ModuleInfo for module $($ModBuildCfg.Name)."
-                }
+                $testResult.TargetDirectory = $ModBuildCfg.DestinationPath
+                [PSBuild.Context]::Current.SolutionModulesCache.Update($testResult)
+            }
+            else
+            {
+                throw "Build Solution Module Cache failed. Unsupported operation: missing ModuleInfo for module $($ModBuildCfg.Name)."
             }
         }
     }
@@ -990,41 +987,40 @@ function priv_Build-SolutionScriptsCache
 
         foreach ($ScrBuildCfg in $BuildConfiguration)
         {
-            if( -not ([PSBuild.Context]::Current.SolutionScriptsCache.Contains($ScrBuildCfg.SourcePath)))
+            Write-Verbose -Message "[Build PSScript] Analyzing '$($ScrBuildCfg.Name)'"
+
+            $TestScript_Params = @{
+                    ScriptPath = ($ScrBuildCfg.SourcePath)
+                    UseScriptConfigFile = ($UseScriptConfigFile.IsPresent)
+            }
+
+            $testResult = priv_Test-Script @TestScript_Params
+            if($testResult.IsScript)
             {
-                Write-Verbose -Message "[Build PSScript] Analyzing '$($ScrBuildCfg.Name)'"
+                $testResult.TargetDirectory = $ScrBuildCfg.DestinationPath
+                $testResult.RequiredModulesTargetDirectory = $ScrBuildCfg.RequiredModulesDestinationPath
+                [PSBuild.Context]::Current.SolutionScriptsCache.Update($testResult)
+            }
+            else
+            {
+                $ErrorMsg = "Build Solution Scripts Cache failed."
 
-                $TestScript_Params = @{
-                     ScriptPath = ($ScrBuildCfg.SourcePath)
-                     UseScriptConfigFile = ($UseScriptConfigFile.IsPresent)
-                }
-
-                $testResult = priv_Test-Script @TestScript_Params
-                if($testResult.IsScript)
+                if($testResult.ValidationErrors)
                 {
-                    $testResult.TargetDirectory = $ScrBuildCfg.DestinationPath
-                    $testResult.RequiredModulesTargetDirectory = $ScrBuildCfg.RequiredModulesDestinationPath
-                    [PSBuild.Context]::Current.SolutionScriptsCache.Add($testResult)
+                    $ErrorMsg += [System.Environment]::NewLine
+                    $ErrorMsg += "Validation Errors:"
+                    $ErrorMsg += [System.Environment]::NewLine
+                    $ErrorMsg += $testResult.ValidationErrors -join "$([System.Environment]::NewLine)"
                 }
                 else
                 {
-                    $ErrorMsg = "Build Solution Scripts Cache failed."
-
-                    if($testResult.ValidationErrors)
-                    {
-                        $ErrorMsg += [System.Environment]::NewLine
-                        $ErrorMsg += "Validation Errors:"
-                        $ErrorMsg += [System.Environment]::NewLine
-                        $ErrorMsg += $testResult.ValidationErrors -join "$([System.Environment]::NewLine)"
-                    }
-                    else
-                    {
-                        $ErrorMsg += " Unsupported operation: missing ScriptInfo for script $($ScrBuildCfg.FullName)."
-                    }
-
-                    throw $ErrorMsg
+                    $ErrorMsg += " Unsupported operation: missing ScriptInfo for script $($ScrBuildCfg.FullName)."
                 }
+
+                throw $ErrorMsg
             }
+
+
         }
     }
 }
@@ -1193,7 +1189,7 @@ function priv_Update-CommandsToModuleMapping
                     {
                         # This module is already present in the collection
                     }
-                    elseif ([PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping)
+                    elseif (-not [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping)
                     {
                         throw "Command with name '$($Command.CommandName)' is present in multiple modules: $([PSBuild.Context]::Current.CommandsToModuleMapping[$Command.CommandName].CommandSources[0].Source), $($Command.Source)"
                     }
@@ -1463,7 +1459,7 @@ function Build-PSModule
         # Update Command References Config
         if($PSBoundParameters.ContainsKey('CheckDuplicateCommandNames'))
         {
-            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = ($CheckDuplicateCommandNames.IsPresent)
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = (-not ($CheckDuplicateCommandNames.IsPresent))
         }
 
         # Update Module References Config
@@ -1526,6 +1522,11 @@ function Build-PSModule
         Write-Verbose -Message "[Build PSModule] Building Local Solution Modules..."
         foreach ($ModuleObj in [PSBuild.Context]::Current.SolutionModulesCache.GetOrderedProcessingList())
         {
+			if($ModuleObj.PreferredProcessingOrder -gt 1000)
+			{
+				throw "Detected cyclic dependency at module $ModuleObj."			
+			}
+
             # PART 4-a: Analyze Required Modules
             # This time we expect that all required modules have already been downloaded from repos or built in advance
             # If a required module is not at the target build location, there is an unresolvable dependency and the process stops.
@@ -1837,7 +1838,7 @@ function Build-PSScript
         # Update Command References Config
         if($PSBoundParameters.ContainsKey('CheckDuplicateCommandNames'))
         {
-            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = ($CheckDuplicateCommandNames.IsPresent)
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = (-not ($CheckDuplicateCommandNames.IsPresent))
         }
 
         # Update Module References Config
@@ -2165,7 +2166,7 @@ function Build-PSScript
 
                     priv_Export-Artifact @privExportArtifact_Params -Verbose:$false
                                         
-                    [PSBuild.Context]::Current.BuiltModulesCache.Add([PSBuild.PSModuleBuildInfo]::new($ScriptObj.Name, $ScriptObj.ScriptInfo.Version, $ScriptObj.ScriptPath, $ScriptObj.TargetDirectory))
+                    [PSBuild.Context]::Current.BuiltScriptsCache.Add([PSBuild.PSScriptBuildInfo]::new($ScriptObj.Name, $ScriptObj.ScriptInfo.Version, $ScriptObj.ScriptPath, $ScriptObj.TargetDirectory))
                 }
                 catch
                 {
@@ -2186,11 +2187,11 @@ function Build-PSSolution
     param
     (
         #SolutionConfigPath
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_SolutionByPath')]
         [System.IO.DirectoryInfo]$SolutionConfigPath,
 
         #SolutionConfig
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'NoRemoting_SolutionByObject')]
         [psobject]$SolutionConfigObject,
 
         #Clear
@@ -2239,7 +2240,7 @@ function Build-PSSolution
 
             [PSBuild.Context]::Current.CheckCommandReferencesConfiguration = [PSBuild.CheckCommandReferencesConfiguration]::new($SolutionConfig.Build.CheckCommandReferences)
 
-            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = $SolutionConfig.Build.CheckDuplicateCommandNames
+            [PSBuild.Context]::Current.AllowDuplicateCommandsInCommandToModuleMapping = (-not ($SolutionConfig.Build.CheckDuplicateCommandNames))
 
             [PSBuild.Context]::Current.UpdateModuleReferences = $SolutionConfig.Build.UpdateModuleReferences
 

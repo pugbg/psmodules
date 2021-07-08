@@ -1,3 +1,7 @@
 #Ignore CC Azure Reporting bin folder
 /bin
 /.vs
+/modules/PSBuild - PSBuildEntities DLL/.vs
+/modules/PSBuild - PSBuildEntities DLL/packages
+/modules/PSBuild - PSBuildEntities DLL/PSBuildEntities/bin
+/modules/PSBuild - PSBuildEntities DLL/PSBuildEntities/obj
