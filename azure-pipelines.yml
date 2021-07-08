@@ -13,13 +13,13 @@ stages:
       enabled: true
       inputs:
         filePath: "Prepare-PipelineAgent.ps1"
-        pwsh: true
+        pwsh: false
     - task: PowerShell@2
       displayName: PSBuild Modules
       enabled: true
       inputs:
         filePath: "Build-PSSolution.ps1"
-        pwsh: true
+        pwsh: false
     - task: PublishPipelineArtifact@0
       displayName: Pulbish Artifact
       enabled: true
@@ -47,11 +47,11 @@ stages:
             enabled: true
             inputs:
               filePath: '$(System.ArtifactsDirectory)\psmodules\Prepare-PipelineAgent.ps1'
-              pwsh: true
+              pwsh: false
           - task: PowerShell@2
             displayName: PSPublish Modules
             enabled: true
             inputs:
               filePath: '$(System.ArtifactsDirectory)\psmodules\Publish-PSSolution.ps1'
               arguments: '-PSGalleryApiKey $(PSGalleryApiKey)'
-              pwsh: true
+              pwsh: false
