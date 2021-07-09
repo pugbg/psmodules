@@ -8,7 +8,6 @@
     "powershell.codeFormatting.whitespaceInsideBrace": true,
     "powershell.codeFormatting.whitespaceBeforeOpenParen": true,
     "powershell.codeFormatting.whitespaceBeforeOpenBrace": true,
-    "powershell.codeFormatting.whitespaceAroundPipe": true,
     "powershell.codeFormatting.whitespaceAroundOperator": true,
     "powershell.codeFormatting.whitespaceAfterSeparator": true,
     "powershell.codeFormatting.openBraceOnSameLine": false,
@@ -31,4 +30,5 @@
         "**/.DS_Store": true,
     },
     "powershell.scriptAnalysis.enable": false,
+    "powershell.codeFormatting.addWhitespaceAroundPipe": true,
 }

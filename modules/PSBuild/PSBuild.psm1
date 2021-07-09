@@ -2359,15 +2359,18 @@ function Build-PSSolution
                     }
                 }
 
-                $BuildPSModule_Params = @{
-                    ModulePathConfiguration    = $ModulePathConfiguration
-                    ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
-                    PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
-                }
-                if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSModule_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
+                if ($ModulePathConfiguration.Count -gt 0)
+                {
+                    $BuildPSModule_Params = @{
+                        ModulePathConfiguration    = $ModulePathConfiguration
+                        ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
+                        PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
+                    }
+                    if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSModule_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
 
-                Build-PSModule @BuildPSModule_Params -ErrorAction Stop
-		
+                    Build-PSModule @BuildPSModule_Params -ErrorAction Stop
+		        }
+
                 Write-Verbose "Build PSModules completed"
             }
             else
@@ -2405,16 +2408,19 @@ function Build-PSSolution
                     }))
                 }
             }
+            
+            if ($ScriptPathConfiguration.Count -gt 0)
+            {
+                $BuildPSScript_Params = @{
+                    ScriptPathConfiguration    = $ScriptPathConfiguration
+                    ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
+                    UseScriptConfigFile        = $SolutionConfig.Build.UseScriptConfigFile
+                    PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
+                }
+                if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
 
-            $BuildPSScript_Params = @{
-                ScriptPathConfiguration    = $ScriptPathConfiguration
-                ResolveDependancies        = $SolutionConfig.Build.AutoResolveDependantModules
-                UseScriptConfigFile        = $SolutionConfig.Build.UseScriptConfigFile
-                PSGetRepository            = $SolutionConfig.Packaging.PSGetSearchRepositories
+                Build-PSScript @BuildPSScript_Params -ErrorAction Stop
             }
-            if ($SolutionConfig.GlobalSettings.Proxy.Uri) { $BuildPSScript_Params.Add('Proxy', $SolutionConfig.GlobalSettings.Proxy.Uri) }
-
-            Build-PSScript @BuildPSScript_Params -ErrorAction Stop
       
             Write-Verbose "Build Solution Scripts completed"
         }

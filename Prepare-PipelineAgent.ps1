@@ -5,11 +5,13 @@ try
     $RequiredModules = (
         @{
             Name            = 'PowerShellGet'
-            RequiredVersion = '2.1.5'
+            RequiredVersion = '2.2.5'
+            Repository='psgallery'
         },
         @{
             Name            = 'PackageManagement'
             RequiredVersion = '1.4.2'
+            Repository='psgallery'
         }
     )
     foreach ($mod in $RequiredModules)
