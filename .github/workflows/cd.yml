@@ -27,5 +27,5 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Build modules
-        run: Build-PSSolution.ps1
+        run: .\Build-PSSolution.ps1
         shell: powershell
